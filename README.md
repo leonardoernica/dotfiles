@@ -30,7 +30,7 @@ Este repositório contém todas as configurações do meu ambiente Hyprland, org
 ### 1. Clonar o repositório
 
 ```bash
-git clone <url-do-repositorio> ~/projects/dotfiles
+git clone https://github.com/leonardoernica/dotfiles.git ~/projects/dotfiles
 cd ~/projects/dotfiles
 ```
 
@@ -70,8 +70,16 @@ ls -la ~/.zshrc
 
 Alguns arquivos podem conter caminhos absolutos que precisam ser ajustados:
 
-- `hypr/hypr/hyprpaper.conf` - Verifique os caminhos dos wallpapers
-- Outros arquivos que referenciem caminhos específicos do sistema
+- `hypr/hypr/hyprpaper.conf` - Ajuste os caminhos dos wallpapers para o seu sistema:
+  ```bash
+  # Edite o arquivo e altere:
+  # /home/lzin/Imagens/Wallpapers/ → /home/SEU_USUARIO/Imagens/Wallpapers/
+  ```
+- Ou copie os wallpapers para o local esperado:
+  ```bash
+  mkdir -p ~/Imagens/Wallpapers
+  cp wallpapers/* ~/Imagens/Wallpapers/
+  ```
 
 ## Desinstalação
 

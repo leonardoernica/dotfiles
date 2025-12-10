@@ -29,14 +29,17 @@ Ensure you have the following installed:
     mv ~/.config/waybar ~/.config/waybar.bak
     ```
 
-2.  **Copy files**:
+2.  **Install using Stow** (recommended):
+    If you're using this dotfiles repository with stow:
+    ```bash
+    cd ~/projects/dotfiles
+    stow -t ~ waybar
+    ```
+    
+    **Or copy files manually**:
     Copy the contents of this directory to `~/.config/waybar`:
     ```bash
-    cp -r /home/lzin/projects/Waybar/* ~/.config/waybar/
-    ```
-    *Alternatively, you can symlink if you want to keep editing from the project folder:*
-    ```bash
-    ln -s /home/lzin/projects/Waybar ~/.config/waybar
+    cp -r waybar/waybar/* ~/.config/waybar/
     ```
 
 3.  **Make script executable**:
