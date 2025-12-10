@@ -18,7 +18,6 @@ fi
 
 # Lista de pacotes para instalar
 PACKAGES=(
-    "hyprland"
     "hypr"
     "kitty"
     "waybar"
