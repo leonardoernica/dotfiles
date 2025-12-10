@@ -1,0 +1,258 @@
+/* 
+ * Cyber-Glass Theme 2026 
+ * Designed for Hyprland
+ */
+
+/* Reset and Base */
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "JetBrainsMono Nerd Font", "Roboto", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 0;
+}
+
+window#waybar {
+    background: transparent;
+    /* Transparent background for floating effect */
+    color: #cdd6f4;
+}
+
+tooltip {
+    background: rgba(30, 30, 46, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+/* 
+ * Module Styles 
+ * Glassmorphism effect: Semi-transparent background + Blur + Border
+ */
+
+.modules-left,
+.modules-center,
+.modules-right {
+    background: transparent;
+}
+
+#workspaces,
+#custom-walker,
+#custom-todo,
+#clock,
+#group-hardware,
+#group-connectivity,
+#group-media,
+#battery,
+#tray {
+    background: rgba(30, 30, 46, 0.85);
+    /* Increased opacity since blur isn't supported via CSS */
+    color: #cdd6f4;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    /* Subtle glass border */
+    margin: 6px 4px;
+    padding: 6px 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    /* Soft shadow for depth */
+}
+
+/* 
+ * Page Navigator (Workspaces) 
+ * Animated Dots Style
+ */
+#workspaces {
+    padding: 4px 8px;
+    border-radius: 50px;
+    /* Pill shape */
+}
+
+#workspaces button {
+    padding: 0 6px;
+    background: transparent;
+    color: #585b70;
+    /* Dimmed inactive dots */
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    min-width: 12px;
+    font-size: 12px;
+    /* Base size for inactive dots */
+}
+
+#workspaces button.active {
+    color: #a6e3a1;
+    /* Green active dot */
+    text-shadow: 0 0 8px rgba(166, 227, 161, 1), 0 0 16px rgba(166, 227, 161, 0.6);
+    /* Strong neon glow */
+    font-size: 18px;
+    /* Bigger than inactive 12px */
+    padding: 0 8px;
+    /* More horizontal space */
+}
+
+#workspaces button.urgent {
+    color: #f38ba8;
+    /* Red urgent */
+    text-shadow: 0 0 10px rgba(243, 139, 168, 0.8);
+    animation: pulse 1.5s infinite;
+}
+
+#workspaces button:hover {
+    color: #cdd6f4;
+    text-shadow: 0 0 5px rgba(205, 214, 244, 0.5);
+}
+
+/* 
+ * Module Specifics 
+ */
+
+#custom-walker {
+    color: #89b4fa;
+    /* Blue logo */
+    font-size: 18px;
+    padding: 6px 16px;
+}
+
+#clock {
+    color: #fab387;
+    /* Peach */
+    font-weight: 800;
+    background: rgba(30, 30, 46, 0.85);
+    /* Slightly more opaque */
+}
+
+#custom-todo {
+    color: #f9e2af;
+    /* Yellow */
+}
+
+/* Groups - Unified look */
+#group-hardware,
+#group-connectivity,
+#group-media {
+    padding: 6px 10px;
+}
+
+/* Inner modules in groups need zero margin/padding to fit the container */
+#cpu,
+#memory,
+#network,
+#bluetooth,
+#pulseaudio,
+#backlight {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    margin: 0;
+    padding: 0 8px;
+    /* Internal spacing */
+}
+
+/* Icons & Text Spacing */
+#cpu,
+#memory,
+#network,
+#bluetooth,
+#pulseaudio,
+#backlight,
+#battery {
+    /* Ensure icon and text are separated */
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+#cpu {
+    color: #94e2d5;
+}
+
+#memory {
+    color: #f38ba8;
+}
+
+#network {
+    color: #89dceb;
+}
+
+#bluetooth {
+    color: #89dceb;
+}
+
+#pulseaudio {
+    color: #cba6f7;
+}
+
+#backlight {
+    color: #cba6f7;
+}
+
+#battery {
+    color: #a6e3a1;
+}
+
+#battery.charging,
+#battery.plugged {
+    color: #a6e3a1;
+    text-shadow: 0 0 5px rgba(166, 227, 161, 0.6);
+}
+
+#battery.critical:not(.charging) {
+    background: rgba(243, 139, 168, 0.2);
+    color: #f38ba8;
+    border: 1px solid #f38ba8;
+    animation: blink 1s linear infinite;
+}
+
+@keyframes blink {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        text-shadow: 0 0 10px rgba(243, 139, 168, 0.8);
+    }
+
+    50% {
+        text-shadow: 0 0 25px rgba(243, 139, 168, 1);
+    }
+
+    100% {
+        text-shadow: 0 0 10px rgba(243, 139, 168, 0.8);
+    }
+}
+
+/* Power Button - Circle (GTK CSS compatible) */
+#custom-power {
+    background: rgba(243, 139, 168, 0.15);
+    color: #f38ba8;
+    border-radius: 50%;
+
+    /* 1. FORÇA O QUADRADO: Define dimensões mínimas iguais. */
+    min-width: 35px;
+    min-height: 35px;
+
+    /* 2. ZERA O PADDING: O tamanho é controlado por min-width/height, não por padding. */
+    /* Isso impede que o botão force a Waybar a ficar mais alta que os outros módulos. */
+    padding: 0;
+
+    /* 3. MARGEM: Mantém as margens laterais e verticais em 6px, alinhadas aos outros módulos. */
+    margin: 6px 2px 6px 2px;
+
+    /* 4. TAMANHO DO ÍCONE: Aumente para preencher melhor o espaço. */
+    font-size: 16px;
+}
+
+#custom-power:hover {
+    background: rgba(243, 139, 168, 0.3);
+    color: #ffffff;
+}

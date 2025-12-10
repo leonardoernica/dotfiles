@@ -1,0 +1,90 @@
+/* 
+ * wlogout - Art Gallery Edition 2026
+ * Famous paintings - FLAT minimal design
+ */
+
+/* Full-screen dark background */
+window {
+    background-color: rgba(0, 0, 0, 0.85);
+}
+
+/* Button base styling - COMPLETELY FLAT 2D - NO DELAY */
+button {
+    border-radius: 24px;
+    border: none;
+    box-shadow: none;
+    outline: none;
+    color: rgba(255, 255, 255, 0.95);
+    margin: 16px;
+    background-size: cover;
+    background-repeat: no-repeat;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+    font-weight: 600;
+}
+
+button:hover,
+button:focus {
+    border: none;
+    box-shadow: none;
+    outline: none;
+}
+
+/* Shutdown - Death of Marat - MUCH DARKER */
+#shutdown {
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
+        url("art/shutdown.jpg");
+    background-position: center 70%;
+}
+
+#shutdown:hover,
+#shutdown:focus {
+    background-image:
+        linear-gradient(rgba(243, 139, 168, 0.2), rgba(243, 139, 168, 0.2)),
+        url("art/shutdown.jpg");
+}
+
+/* Reboot - Creation of Adam - MUCH DARKER */
+#reboot {
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
+        url("art/reboot.png");
+    background-position: 15% center;
+}
+
+#reboot:hover,
+#reboot:focus {
+    background-image:
+        linear-gradient(rgba(250, 179, 135, 0.2), rgba(250, 179, 135, 0.2)),
+        url("art/reboot.png");
+}
+
+/* Lock - Man in Bowler Hat - MUCH DARKER */
+#lock {
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
+        url("art/lock.webp");
+    background-position: center 35%;
+}
+
+#lock:hover,
+#lock:focus {
+    background-image:
+        linear-gradient(rgba(137, 180, 250, 0.2), rgba(137, 180, 250, 0.2)),
+        url("art/lock.webp");
+}
+
+/* Suspend - Impression Sunrise - MUCH DARKER */
+#suspend {
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
+        url("art/suspend.jpg");
+    background-position: center center;
+}
+
+#suspend:hover,
+#suspend:focus {
+    background-image:
+        linear-gradient(rgba(249, 226, 175, 0.2), rgba(166, 227, 161, 0.2)),
+        url("art/suspend.jpg");
+}

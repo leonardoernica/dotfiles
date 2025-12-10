@@ -1,0 +1,23 @@
+# Arquivos temporários
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Arquivos de backup
+*.bak
+*.backup
+*~
+
+# Diretórios vazios (mantidos com .gitkeep)
+# Mas não ignoramos os .gitkeep
+
+# Arquivos de sistema
+Thumbs.db
+
+# Logs
+*.log
+
+# Arquivos pessoais que não devem ser versionados
+# (adicione aqui arquivos específicos se necessário)
+

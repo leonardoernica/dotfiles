@@ -1,0 +1,203 @@
+{
+    "layer": "top",
+    "position": "top",
+    "mod": "dock",
+    "exclusive": true,
+    "passthrough": false,
+    "gtk-layer-shell": true,
+    "height": 48,
+    "margin-top": 20,
+    "margin-left": 20,
+    "margin-right": 20,
+    "modules-left": [
+        "custom/walker",
+        "hyprland/workspaces",
+        "hyprland/window"
+    ],
+    "modules-center": [
+        "clock"
+    ],
+    "modules-right": [
+        "custom/todo",
+        "group/hardware",
+        "group/connectivity",
+        "group/media",
+        "battery",
+        "custom/power"
+    ],
+    "hyprland/window": {
+        "format": "{}"
+    },
+    "hyprland/workspaces": {
+        "disable-scroll": true,
+        "all-outputs": true,
+        "active-only": false,
+        "on-click": "activate",
+        "format": "{icon}",
+        "persistent-workspaces": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": []
+        },
+        "format-icons": {
+            "1": "•",
+            "2": "•",
+            "3": "•",
+            "4": "•",
+            "5": "•",
+            "urgent": "⬤",
+            "active": "⬤",
+            "default": "•"
+        }
+    },
+    "custom/walker": {
+        "format": "󰣇 ",
+        "on-click": "walker",
+        "tooltip": false
+    },
+    "custom/todo": {
+        "format": "☑ {}",
+        "exec": "~/.config/waybar/scripts/todo.sh count",
+        "on-click": "~/.config/waybar/scripts/todo.sh menu",
+        "on-click-right": "~/.config/waybar/scripts/todo.sh add",
+        "interval": 5,
+        "tooltip": true
+    },
+    "clock": {
+        "format": "{:%H:%M:%S}",
+        "format-alt": "{:%d/%m/%Y}",
+        "tooltip-format": "<tt><small>{calendar}</small></tt>",
+        "calendar": {
+            "mode": "year",
+            "mode-mon-col": 3,
+            "weeks-pos": "right",
+            "on-scroll": 1,
+            "format": {
+                "months": "<span color='#ffead3'><b>{}</b></span>",
+                "days": "<span color='#ecc6d9'><b>{}</b></span>",
+                "weeks": "<span color='#99ffdd'><b>W{}</b></span>",
+                "weekdays": "<span color='#ffcc66'><b>{}</b></span>",
+                "today": "<span color='#ff6699'><b><u>{}</u></b></span>"
+            }
+        },
+        "actions": {
+            "on-click-right": "mode",
+            "on-click-forward": "tz_up",
+            "on-click-backward": "tz_down",
+            "on-scroll-up": "shift_up",
+            "on-scroll-down": "shift_down"
+        },
+        "interval": 1
+    },
+    "group/hardware": {
+        "orientation": "horizontal",
+        "modules": [
+            "cpu",
+            "memory"
+        ]
+    },
+    "cpu": {
+        "interval": 10,
+        "format": "󰍛  {usage}%",
+        "max-length": 14
+    },
+    "memory": {
+        "interval": 30,
+        "format": "󰘚  {}%",
+        "max-length": 14
+    },
+    "group/connectivity": {
+        "orientation": "horizontal",
+        "modules": [
+            "network",
+            "bluetooth"
+        ]
+    },
+    "network": {
+        "format-wifi": "󰤨   {signalStrength}%",
+        "format-ethernet": "󰈀 ",
+        "tooltip-format": "{essid} ({signalStrength}%)\n{ifname}\n{ipaddr}/{cidr}",
+        "format-linked": "{ifname} (No IP)",
+        "format-disconnected": "󰤭   Offline",
+        "on-click": "~/.config/waybar/scripts/wifi-menu.sh"
+    },
+    "bluetooth": {
+        "format": "󰂯 {status}",
+        "format-disabled": "",
+        "format-off": "󰂲",
+        "format-on": "󰂯",
+        "format-connected": "󰂱 {num_connections}",
+        "format-no-controller": "",
+        "tooltip-format": "{controller_alias}\t{controller_address}",
+        "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+        "on-click": "blueman-manager"
+    },
+    "group/media": {
+        "orientation": "horizontal",
+        "modules": [
+            "pulseaudio",
+            "backlight"
+        ]
+    },
+    "pulseaudio": {
+        "format": "{icon}   {volume}%",
+        "format-bluetooth": "{icon}   {volume}%",
+        "format-bluetooth-muted": "󰝟 {icon}",
+        "format-muted": "󰝟",
+        "format-icons": {
+            "headphone": "󰋋",
+            "hands-free": "󰋎",
+            "headset": "󰋎",
+            "phone": "󰏲",
+            "portable": "󰏲",
+            "car": "󰄋",
+            "default": [
+                "󰕿",
+                "󰖀",
+                "󰕾"
+            ]
+        },
+        "on-click": "pavucontrol"
+    },
+    "backlight": {
+        "device": "intel_backlight",
+        "format": "{icon}   {percent}%",
+        "format-icons": [
+            "󰃞",
+            "󰃟",
+            "󰃠"
+        ]
+    },
+    "battery": {
+        "states": {
+            "good": 95,
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon} {capacity}%",
+        "format-charging": "󰂄 {capacity}%",
+        "format-plugged": "󰂄 {capacity}%",
+        "format-alt": "{time} {icon}",
+        "format-icons": [
+            "󰂎",
+            "󰁺",
+            "󰁻",
+            "󰁼",
+            "󰁽",
+            "󰁾",
+            "󰁿",
+            "󰂀",
+            "󰂁",
+            "󰂂",
+            "󰁹"
+        ]
+    },
+    "custom/power": {
+        "format": "󰐥",
+        "tooltip": false,
+        "on-click": "~/.config/waybar/scripts/power-menu.sh"
+    }
+}

@@ -1,0 +1,102 @@
+/* 
+ * wlogout - Modern Glassmorphism 2026
+ * Full-screen blur with glass card buttons
+ */
+
+/* Full-screen blurred background */
+window {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Button styling - glassmorphism cards */
+button {
+    background-color: rgba(40, 42, 54, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.9);
+    margin: 16px;
+    background-repeat: no-repeat;
+    background-position: center 30%;
+    background-size: 30%;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+button:hover {
+    background-color: rgba(60, 64, 80, 0.85);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+button:focus {
+    background-color: rgba(80, 90, 120, 0.85);
+    border-color: rgba(137, 180, 250, 0.5);
+    box-shadow:
+        0 0 0 3px rgba(137, 180, 250, 0.3),
+        0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Shutdown - Red accent */
+#shutdown {
+    background-image: image(url("/home/lzin/.config/wlogout/icons/shutdown.svg"));
+}
+
+#shutdown:hover,
+#shutdown:focus {
+    background-color: rgba(243, 139, 168, 0.25);
+    border-color: rgba(243, 139, 168, 0.5);
+    box-shadow: 0 0 30px rgba(243, 139, 168, 0.2);
+}
+
+/* Reboot - Orange accent */
+#reboot {
+    background-image: image(url("/home/lzin/.config/wlogout/icons/reboot.svg"));
+}
+
+#reboot:hover,
+#reboot:focus {
+    background-color: rgba(250, 179, 135, 0.25);
+    border-color: rgba(250, 179, 135, 0.5);
+    box-shadow: 0 0 30px rgba(250, 179, 135, 0.2);
+}
+
+/* Lock - Blue accent */
+#lock {
+    background-image: image(url("/home/lzin/.config/wlogout/icons/lock.svg"));
+}
+
+#lock:hover,
+#lock:focus {
+    background-color: rgba(137, 180, 250, 0.25);
+    border-color: rgba(137, 180, 250, 0.5);
+    box-shadow: 0 0 30px rgba(137, 180, 250, 0.2);
+}
+
+/* Suspend - Green accent */
+#suspend {
+    background-image: image(url("/home/lzin/.config/wlogout/icons/suspend.svg"));
+}
+
+#suspend:hover,
+#suspend:focus {
+    background-color: rgba(166, 227, 161, 0.25);
+    border-color: rgba(166, 227, 161, 0.5);
+    box-shadow: 0 0 30px rgba(166, 227, 161, 0.2);
+}
+
+/* Logout - Purple accent */
+#logout {
+    background-image: image(url("/home/lzin/.config/wlogout/icons/logout.svg"));
+}
+
+#logout:hover,
+#logout:focus {
+    background-color: rgba(203, 166, 247, 0.25);
+    border-color: rgba(203, 166, 247, 0.5);
+    box-shadow: 0 0 30px rgba(203, 166, 247, 0.2);
+}

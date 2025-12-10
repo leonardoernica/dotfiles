@@ -1,0 +1,29 @@
+# Use a fonte Nerd Font para exibir os ícones (glifos)
+add_newline = false
+
+# Definir o formato do prompt
+format = """$directory$git$cmd_duration$character"""
+
+# Configuração do diretório (para mostrar o caminho atual)
+[directory]
+truncation_length = 3
+truncate_to_repo = false
+format = "[$path]($style) "
+style = "bold cyan"
+
+# Configuração do Git (para mostrar branch e status)
+[git_branch]
+symbol = " "
+style = "bold purple"
+format = "[$symbol$branch]($style) "
+
+# Duração do comando (só mostra se o comando levar mais de 1 segundo)
+[cmd_duration]
+min_time = 1000
+format = "[$duration]($style) "
+style = "bold yellow"
+
+# Símbolo final (mostra se o comando anterior falhou ou teve sucesso)
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[✗](bold red)"

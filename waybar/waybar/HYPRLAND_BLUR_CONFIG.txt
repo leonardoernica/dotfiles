@@ -1,0 +1,18 @@
+# =======================================================
+# CONFIGURAÇÃO DE BLUR SUTIL PARA WLOGOUT
+# Adicione ao ~/.config/hypr/hyprland.conf
+# =======================================================
+
+# DENTRO DO BLOCO decoration {}:
+decoration {
+    blur {
+        enabled = true
+        size = 5          # REDUZIDO: blur mais sutil
+        passes = 1        # REDUZIDO: menos intenso  
+        new_optimizations = true
+    }
+}
+
+# NO FINAL DO ARQUIVO (fora de qualquer bloco):
+layerrule = blur, logout_dialog
+layerrule = ignorezero, logout_dialog
