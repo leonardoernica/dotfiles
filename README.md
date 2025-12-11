@@ -87,7 +87,7 @@ Alguns arquivos podem conter caminhos absolutos que precisam ser ajustados:
   ```bash
   mkdir -p ~/Imagens/Wallpapers
   cp wallpapers/* ~/Imagens/Wallpapers/
-  ```
+```
 
 ## Desinstalação
 

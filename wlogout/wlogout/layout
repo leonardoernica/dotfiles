@@ -12,7 +12,7 @@
 }
 {
     "label": "lock",
-    "action": "hyprlock || swaylock -f",
+    "action": "bash -c \"$HOME/.config/wlogout/scripts/lock.sh\"",
     "text": "Bloquear",
     "keybind": "l"
 }

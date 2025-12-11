@@ -1,14 +1,15 @@
 #!/bin/bash
-# Power Menu Script
-# Uses wlogout if available, fallback to wofi
+# Power Menu Script - Maximum performance, zero delays
+# Direct execution - no unnecessary checks or sleeps
 
 CONFIG_DIR="$HOME/.config/wlogout"
 
-# Check if wlogout is installed
 if command -v wlogout &>/dev/null; then
-    # Launch wlogout with custom config
-    # 2 buttons per row = 2x2 grid layout like the reference image
-    wlogout \
+    # Kill any existing instance immediately
+    killall -q wlogout
+    
+    # Execute immediately - no sleeps, no waits, no delays
+    exec wlogout \
         --layout "$CONFIG_DIR/layout" \
         --css "$CONFIG_DIR/style.css" \
         --buttons-per-row 2 \
@@ -50,7 +51,7 @@ else
     case "$CHOICE" in
         *"Desligar"*) systemctl poweroff ;;
         *"Reiniciar"*) systemctl reboot ;;
-        *"Bloquear"*) hyprlock 2>/dev/null || swaylock -f ;;
+        *"Bloquear"*) bash -c "$HOME/.config/wlogout/scripts/lock.sh" ;;
         *"Suspender"*) systemctl suspend ;;
     esac
 fi

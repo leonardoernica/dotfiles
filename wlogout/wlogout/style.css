@@ -3,12 +3,12 @@
  * Famous paintings - FLAT minimal design
  */
 
-/* Full-screen dark background */
+/* Full-screen dark background with blur (blur aplicado pelo Hyprland) */
 window {
     background-color: rgba(0, 0, 0, 0.85);
 }
 
-/* Button base styling - COMPLETELY FLAT 2D - NO DELAY */
+/* Button base styling - com bordas arredondadas e animações */
 button {
     border-radius: 24px;
     border: none;
@@ -20,6 +20,8 @@ button {
     background-repeat: no-repeat;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
     font-weight: 600;
+    /* Animações suaves de hover */
+    transition: all 0.2s ease;
 }
 
 button:hover,
@@ -27,13 +29,15 @@ button:focus {
     border: none;
     box-shadow: none;
     outline: none;
+    /* Efeito de hover - usando opacity para simular scale */
+    opacity: 0.95;
 }
 
 /* Shutdown - Death of Marat - MUCH DARKER */
 #shutdown {
     background-image:
         linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
-        url("art/shutdown.jpg");
+        url("art/shutdown.webp");
     background-position: center 70%;
 }
 
@@ -41,14 +45,14 @@ button:focus {
 #shutdown:focus {
     background-image:
         linear-gradient(rgba(243, 139, 168, 0.2), rgba(243, 139, 168, 0.2)),
-        url("art/shutdown.jpg");
+        url("art/shutdown.webp");
 }
 
 /* Reboot - Creation of Adam - MUCH DARKER */
 #reboot {
     background-image:
         linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
-        url("art/reboot.png");
+        url("art/reboot.webp");
     background-position: 15% center;
 }
 
@@ -56,10 +60,11 @@ button:focus {
 #reboot:focus {
     background-image:
         linear-gradient(rgba(250, 179, 135, 0.2), rgba(250, 179, 135, 0.2)),
-        url("art/reboot.png");
+        url("art/reboot.webp");
 }
 
 /* Lock - Man in Bowler Hat - MUCH DARKER */
+/* Using small webp image (36KB) - acceptable for instant display */
 #lock {
     background-image:
         linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
@@ -78,7 +83,7 @@ button:focus {
 #suspend {
     background-image:
         linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
-        url("art/suspend.jpg");
+        url("art/suspend.webp");
     background-position: center center;
 }
 
@@ -86,5 +91,5 @@ button:focus {
 #suspend:focus {
     background-image:
         linear-gradient(rgba(249, 226, 175, 0.2), rgba(166, 227, 161, 0.2)),
-        url("art/suspend.jpg");
+        url("art/suspend.webp");
 }
