@@ -40,11 +40,23 @@ for package in "${PACKAGES[@]}"; do
 done
 
 echo ""
+echo "📌 Instalando SDDM (requer sudo)..."
+if [ -d "sddm" ]; then
+    echo "   Executando: sudo stow -t / sddm"
+    sudo stow -t / sddm 2>&1 | grep -v "BUG in find_stowed_path" || true
+    echo "   ✓ SDDM instalado"
+    echo "   ⚠ Reinicie o SDDM para aplicar as mudanças: sudo systemctl restart sddm"
+else
+    echo "   ⚠ sddm não encontrado, pulando..."
+fi
+
+echo ""
 echo "✅ Instalação concluída!"
 echo ""
 echo "📝 Próximos passos:"
 echo "   1. Verifique os symlinks criados: ls -la ~/.config/"
 echo "   2. Ajuste caminhos absolutos se necessário (ex: hypr/hypr/hyprpaper.conf)"
 echo "   3. Reinicie o Hyprland ou recarregue as configurações"
+echo "   4. Se instalou SDDM, reinicie: sudo systemctl restart sddm"
 echo ""
 

@@ -15,7 +15,7 @@ Este repositório contém todas as configurações do meu ambiente Hyprland, org
 - `wallpapers/` - Papéis de parede
 - `fastfetch/` - Configurações do Fastfetch (se houver)
 - `wofi/` - Configurações do launcher Wofi (usado mas sem config customizado por enquanto)
-- `sddm/` - Configurações do gerenciador de login SDDM (se houver)
+- `sddm/` - Configurações do gerenciador de login SDDM (temas, configurações, scripts)
 
 ## Pré-requisitos
 
@@ -41,6 +41,9 @@ O Stow criará symlinks automáticos dos arquivos de configuração para os loca
 ```bash
 # Instalar todas as configurações
 stow -t ~ hypr kitty waybar wlogout starship zsh gtk-3.0 gtk-4.0
+
+# Para SDDM, precisa ser instalado com sudo (arquivos em /etc e /usr/share)
+sudo stow -t / sddm
 
 # Ou instalar uma por uma
 stow -t ~ hypr
@@ -87,6 +90,7 @@ Para remover os symlinks (sem deletar os arquivos originais):
 
 ```bash
 stow -D -t ~ hypr kitty waybar wlogout starship zsh gtk-3.0 gtk-4.0
+sudo stow -D -t / sddm
 ```
 
 ## Atualização
