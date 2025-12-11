@@ -5,6 +5,8 @@ Este repositório contém todas as configurações do meu ambiente Hyprland, org
 ## Estrutura
 
 - `hypr/` - Configurações do Hyprland (hyprland.conf, hyprpaper.conf, autostart.conf)
+  - `hypr/hypr/` - Configurações principais (hyprland.conf, hyprpaper.conf)
+  - `hypr/.config/hyprland/` - Autostart (autostart.conf)
 - `kitty/` - Configurações do terminal Kitty
 - `waybar/` - Configurações da barra Waybar
 - `wlogout/` - Configurações do menu de logout
@@ -43,7 +45,10 @@ O Stow criará symlinks automáticos dos arquivos de configuração para os loca
 stow -t ~ hypr kitty waybar wlogout starship zsh gtk-3.0 gtk-4.0
 
 # Para SDDM, precisa ser instalado com sudo (arquivos em /etc e /usr/share)
-sudo stow -t / sddm
+# IMPORTANTE: Após instalar com stow, execute fix-sddm-theme.sh para copiar o tema
+# (SDDM não consegue acessar arquivos via symlink no diretório home)
+sudo stow --adopt -t / sddm
+./fix-sddm-theme.sh
 
 # Ou instalar uma por uma
 stow -t ~ hypr
@@ -134,13 +139,21 @@ cp -r wallpapers/* ~/Imagens/Wallpapers/
 # Ou ajuste o caminho em hypr/hypr/hyprpaper.conf
 ```
 
+## Scripts Auxiliares
+
+- `install.sh` - Instala todos os dotfiles automaticamente
+- `fix-sddm-theme.sh` - Corrige o problema de acesso do tema SDDM (necessário após stow)
+- `setup-remote.sh` - Configura o remote do git e faz push inicial
+- `copy_binaries.sh` - Copia arquivos binários (assets, imagens) do sistema para o repositório
+
 ## Backup
 
 Este repositório serve como backup completo das configurações. Ao trocar de computador:
 
 1. Clone o repositório
 2. Instale o Stow
-3. Execute os comandos de instalação acima
-4. Ajuste caminhos específicos se necessário
+3. Execute `./install.sh` para instalar tudo automaticamente
+4. Execute `./fix-sddm-theme.sh` para corrigir o tema SDDM
+5. Ajuste caminhos específicos se necessário (ex: wallpapers em hyprpaper.conf)
 
 Pronto! Todas as configurações estarão restauradas.
