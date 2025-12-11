@@ -141,10 +141,9 @@ cp -r wallpapers/* ~/Imagens/Wallpapers/
 
 ## Scripts Auxiliares
 
-- `install.sh` - Instala todos os dotfiles automaticamente
-- `fix-sddm-theme.sh` - Corrige o problema de acesso do tema SDDM (necessário após stow)
+- `install.sh` - Instala todos os dotfiles automaticamente usando stow
+- `fix-sddm-theme.sh` - Corrige o problema de acesso do tema SDDM (necessário após stow, pois SDDM não consegue acessar arquivos via symlink no diretório home)
 - `setup-remote.sh` - Configura o remote do git e faz push inicial
-- `copy_binaries.sh` - Copia arquivos binários (assets, imagens) do sistema para o repositório
 
 ## Backup
 
