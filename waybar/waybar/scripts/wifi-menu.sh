@@ -1,185 +1,99 @@
 #!/bin/bash
-# WiFi Menu - Modern Glassmorphism Design
-# Fast, beautiful, organized
+# WiFi Menu Script - Simple and functional
 
-# Custom wofi style for WiFi menu
-STYLE="
-window {
-    background-color: rgba(30, 30, 46, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-}
-#outer-box {
-    margin: 8px;
-}
-#input {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 12px 16px;
-    color: #cdd6f4;
-    font-size: 14px;
-    margin-bottom: 8px;
-}
-#input:focus {
-    border-color: rgba(137, 180, 250, 0.5);
-    box-shadow: 0 0 10px rgba(137, 180, 250, 0.2);
-}
-#inner-box {
-    background-color: transparent;
-}
-#scroll {
-    margin: 0;
-}
-#text {
-    color: #cdd6f4;
-    font-size: 13px;
-}
-#entry {
-    padding: 10px 14px;
-    border-radius: 10px;
-    margin: 2px 0;
-}
-#entry:selected {
-    background-color: rgba(137, 180, 250, 0.2);
-    border: 1px solid rgba(137, 180, 250, 0.3);
-}
-"
+# Get current connection
+CURRENT=$(nmcli -t -f active,ssid dev wifi 2>/dev/null | grep '^yes:' | cut -d: -f2)
 
-# Write temp style
-STYLE_FILE="/tmp/wofi-wifi-style.css"
-echo "$STYLE" > "$STYLE_FILE"
+# Get WiFi status
+WIFI_STATUS=$(nmcli radio wifi)
 
-MENU="wofi --dmenu --prompt '󰤨  WiFi' -i --width 420 --height 400 --style $STYLE_FILE --cache-file /dev/null"
-
-# Get current state
-WIFI_ON=$(nmcli radio wifi)
-CURRENT=$(nmcli -t -f active,ssid dev wifi list --rescan no 2>/dev/null | grep '^yes' | cut -d: -f2)
-CURRENT_SIGNAL=$(nmcli -t -f active,signal dev wifi list --rescan no 2>/dev/null | grep '^yes' | cut -d: -f2)
-
-# Build network list
-get_networks() {
-    nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list --rescan no 2>/dev/null | while IFS=: read -r ssid signal security _; do
-        [ -z "$ssid" ] && continue
-        [ "$ssid" = "$CURRENT" ] && continue  # Skip current (shown separately)
-        
-        # Signal icon
-        if [ "${signal:-0}" -ge 75 ]; then
-            icon="󰤨"
-        elif [ "${signal:-0}" -ge 50 ]; then
-            icon="󰤥"
-        elif [ "${signal:-0}" -ge 25 ]; then
-            icon="󰤢"
-        else
-            icon="󰤟"
-        fi
-        
-        # Security icon
-        [ -n "$security" ] && [ "$security" != "--" ] && lock="󰒃" || lock="󰒄"
-        
-        printf "%s  %s  %s   %s%%\n" "$icon" "$lock" "$ssid" "$signal"
-    done 2>/dev/null | sort -t'%' -k1 -rn | head -20
-}
-
-NETWORKS=$(get_networks)
-
-# Build menu with sections
-build_menu() {
-    # Connected section
+# Build menu
+MENU_ITEMS=""
+if [ "$WIFI_STATUS" = "enabled" ]; then
     if [ -n "$CURRENT" ]; then
-        echo "━━━ CONECTADO ━━━━━━━━━━━━━━━"
-        echo "✓  󰤨  $CURRENT   ${CURRENT_SIGNAL}%"
-        echo "󰅖  Desconectar"
-        echo ""
+        MENU_ITEMS+="Desconectar de $CURRENT\n"
+        MENU_ITEMS+="━━━━━━━━━━━━━━━━━━\n"
     fi
     
-    # Actions section
-    echo "━━━ AÇÕES ━━━━━━━━━━━━━━━━━━━"
-    if [ "$WIFI_ON" = "disabled" ]; then
-        echo "  Ligar WiFi"
-    else
-        echo "  Desligar WiFi"
-    fi
-    echo "󰑓  Atualizar Lista"
-    echo "  Configurações"
-    echo ""
+    # List available networks
+    while IFS=: read -r ssid signal security; do
+        [ -z "$ssid" ] && continue
+        [ "$ssid" = "$CURRENT" ] && continue
+        MENU_ITEMS+="$ssid ($signal%)\n"
+    done < <(nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list --rescan no 2>/dev/null)
     
-    # Available networks
-    if [ -n "$NETWORKS" ]; then
-        echo "━━━ REDES DISPONÍVEIS ━━━━━━━"
-        echo "$NETWORKS"
-    fi
-}
+    MENU_ITEMS+="━━━━━━━━━━━━━━━━━━\n"
+    MENU_ITEMS+="Desligar WiFi\n"
+    MENU_ITEMS+="Atualizar\n"
+    MENU_ITEMS+="Configurações"
+else
+    MENU_ITEMS="Ligar WiFi\nConfigurações"
+fi
 
 # Show menu
-CHOICE=$(build_menu | eval "$MENU")
+CHOICE=$(echo -e "$MENU_ITEMS" | wofi --dmenu --prompt "WiFi" --width 400 --height 500 -i 2>/dev/null)
+
 [ -z "$CHOICE" ] && exit 0
 
-# Handle selection
 case "$CHOICE" in
-    *"━━━"*)
-        # Header, ignore
-        exit 0
-        ;;
-    "✓  󰤨  $CURRENT"*)
-        notify-send "󰤨 WiFi" "Conectado a: $CURRENT\nSinal: ${CURRENT_SIGNAL}%"
-        ;;
-    "󰅖  Desconectar")
-        nmcli connection down "$CURRENT" 2>/dev/null
-        notify-send "󰤭 WiFi" "Desconectado de $CURRENT"
-        ;;
-    "  Ligar WiFi")
+    "Ligar WiFi")
         nmcli radio wifi on
-        notify-send "󰤨 WiFi" "WiFi ligado"
-        sleep 2 && exec "$0" &
+        notify-send "WiFi" "WiFi ligado"
         ;;
-    "  Desligar WiFi")
+    "Desligar WiFi")
         nmcli radio wifi off
-        notify-send "󰤭 WiFi" "WiFi desligado"
+        notify-send "WiFi" "WiFi desligado"
         ;;
-    "󰑓  Atualizar Lista")
-        notify-send "󰤨 WiFi" "Buscando redes..."
+    "Desconectar de "*)
+        nmcli connection down "$CURRENT" 2>/dev/null
+        notify-send "WiFi" "Desconectado"
+        ;;
+    "Atualizar")
         nmcli device wifi rescan 2>/dev/null
+        notify-send "WiFi" "Buscando redes..."
         sleep 2
         exec "$0"
         ;;
-    "  Configurações")
+    "Configurações")
         nm-connection-editor &
         ;;
-    "")
-        # Empty line, ignore
-        ;;
     *)
-        # Network selection - extract SSID
-        SSID=$(echo "$CHOICE" | sed 's/^[󰤨󰤥󰤢󰤟]  [󰒃󰒄]  //' | sed 's/   [0-9]*%$//')
-        [ -z "$SSID" ] && exit 0
+        # Extract SSID (remove signal percentage)
+        SSID=$(echo "$CHOICE" | sed 's/ ([0-9]*%)$//')
         
-        # Check if saved network
-        if nmcli -t -f NAME connection show | grep -qFx "$SSID"; then
-            notify-send "󰤨 WiFi" "Conectando a $SSID..."
-            if nmcli connection up "$SSID" 2>/dev/null; then
-                notify-send "󰤨 WiFi" "✓ Conectado a $SSID"
+        # Check if connection exists
+        CONN_UUID=$(nmcli -t -f UUID,802-11-wireless.ssid connection show 2>/dev/null | grep ":$SSID$" | cut -d: -f1 | head -n1)
+        
+        if [ -n "$CONN_UUID" ]; then
+            # Connect to existing connection
+            notify-send "WiFi" "Conectando a $SSID..."
+            if nmcli connection up "$CONN_UUID" 2>/dev/null; then
+                notify-send "WiFi" "Conectado a $SSID"
             else
-                notify-send "󰤭 WiFi" "✗ Falha ao conectar"
+                notify-send "WiFi" "Falha ao conectar"
             fi
         else
-            # New network
+            # New network - check security
             SECURITY=$(nmcli -t -f SSID,SECURITY dev wifi list --rescan no 2>/dev/null | grep "^$SSID:" | cut -d: -f2 | head -n1)
+            
             if [ -n "$SECURITY" ] && [ "$SECURITY" != "--" ]; then
-                PASSWORD=$(echo "" | wofi --dmenu --prompt "󰒃 Senha para $SSID" --password --width 350 --style "$STYLE_FILE")
+                # Ask for password
+                PASSWORD=$(wofi --dmenu --password --prompt "Senha para $SSID" --width 350 2>/dev/null)
                 [ -z "$PASSWORD" ] && exit 0
-                notify-send "󰤨 WiFi" "Conectando a $SSID..."
+                
+                notify-send "WiFi" "Conectando a $SSID..."
                 if nmcli device wifi connect "$SSID" password "$PASSWORD" 2>/dev/null; then
-                    notify-send "󰤨 WiFi" "✓ Conectado a $SSID"
+                    notify-send "WiFi" "Conectado a $SSID"
                 else
-                    notify-send "󰤭 WiFi" "✗ Senha incorreta"
+                    notify-send "WiFi" "Senha incorreta"
                 fi
             else
-                notify-send "󰤨 WiFi" "Conectando a $SSID..."
+                # Open network
+                notify-send "WiFi" "Conectando a $SSID..."
                 if nmcli device wifi connect "$SSID" 2>/dev/null; then
-                    notify-send "󰤨 WiFi" "✓ Conectado a $SSID"
+                    notify-send "WiFi" "Conectado a $SSID"
                 else
-                    notify-send "󰤭 WiFi" "✗ Falha ao conectar"
+                    notify-send "WiFi" "Falha ao conectar"
                 fi
             fi
         fi
