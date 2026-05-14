@@ -54,6 +54,16 @@ symlink "$DOTS/hypr/hypr/hyprpaper.conf"         "$CONFIG/hypr/hyprpaper.conf"
 symlink "$DOTS/hypr/.config/hyprland/autostart.conf" "$CONFIG/hyprland/autostart.conf"
 [ -d "$DOTS/hypr/.config/hyprlock" ] && symlink "$DOTS/hypr/.config/hyprlock" "$CONFIG/hyprlock"
 
+# ── Libinput quirks (requer sudo) — botão direito físico do touchpad
+echo ""
+if [ -f "$DOTS/libinput/etc/libinput/local-overrides.quirks" ]; then
+    read -rp "Instalar libinput quirk do touchpad? (requer sudo) [s/N] " ans
+    if [[ "$ans" =~ ^[sS]$ ]]; then
+        sudo install -Dm644 "$DOTS/libinput/etc/libinput/local-overrides.quirks" /etc/libinput/local-overrides.quirks
+        echo "   ✓ Quirk instalado (reinicie para aplicar)"
+    fi
+fi
+
 # ── SDDM (requer sudo)
 echo ""
 if [ -d "$DOTS/sddm" ] && command -v stow &>/dev/null; then

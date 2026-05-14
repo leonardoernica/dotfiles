@@ -1,0 +1,5 @@
+[PNP0C50 093A:0255 Touchpad - physical buttons]
+MatchName=PNP0C50:0b 093A:0255 Touchpad
+MatchUdevType=touchpad
+AttrInputProp=-INPUT_PROP_BUTTONPAD
+AttrEventCode=+BTN_LEFT;+BTN_RIGHT
