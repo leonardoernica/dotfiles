@@ -1,62 +1,70 @@
 #!/bin/bash
-# Script para instalar todos os dotfiles usando stow
-
+# Script para instalar todos os dotfiles via symlinks
 set -e
 
-DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$DOTFILES_DIR"
+DOTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG="$HOME/.config"
 
-echo "📦 Instalando dotfiles com GNU Stow..."
+stow_or_warn() {
+    local target="$1" package="$2"
+    if [ ! -d "$DOTS/$package" ]; then
+        echo "   ⚠ $package não encontrado, pulando..."
+        return
+    fi
+    if ! command -v stow &>/dev/null; then
+        echo "   ⚠ stow não instalado (sudo pacman -S stow)"
+        return
+    fi
+    echo "   Stow $package → $target"
+    stow -t "$target" "$package" 2>&1 | grep -v "BUG in find_stowed_path" || true
+}
+
+symlink() {
+    local src="$1" dst="$2"
+    mkdir -p "$(dirname "$dst")"
+    ln -sf "$src" "$dst"
+    echo "   ✓ $(basename "$dst")"
+}
+
+echo "Instalando dotfiles..."
 echo ""
 
-# Verificar se stow está instalado
-if ! command -v stow &> /dev/null; then
-    echo "❌ GNU Stow não está instalado!"
-    echo "   Instale com: sudo pacman -S stow"
-    exit 1
-fi
-
-# Lista de pacotes para instalar
-PACKAGES=(
-    "hypr"
-    "kitty"
-    "waybar"
-    "wlogout"
-    "starship"
-    "zsh"
-    "gtk-3.0"
-    "gtk-4.0"
-)
-
-# Instalar cada pacote
-for package in "${PACKAGES[@]}"; do
-    if [ -d "$package" ]; then
-        echo "📌 Instalando $package..."
-        stow -t ~ "$package" 2>&1 | grep -v "BUG in find_stowed_path" || true
-        echo "   ✓ $package instalado"
-    else
-        echo "   ⚠ $package não encontrado, pulando..."
-    fi
+# ── Pacotes com estrutura package/package_name/ → ~/.config/package_name/
+# (usa stow -t ~/.config)
+echo "[~/.config] kitty waybar wlogout gtk-3.0 gtk-4.0"
+for pkg in kitty waybar wlogout gtk-3.0 gtk-4.0; do
+    stow_or_warn "$CONFIG" "$pkg"
 done
 
+# ── Pacotes com estrutura package/.hidden/ → ~/
+# (usa stow -t ~)
 echo ""
-echo "📌 Instalando SDDM (requer sudo)..."
-if [ -d "sddm" ]; then
-    echo "   Executando: sudo stow -t / sddm"
-    sudo stow -t / sddm 2>&1 | grep -v "BUG in find_stowed_path" || true
-    echo "   ✓ SDDM instalado"
-    echo "   ⚠ Reinicie o SDDM para aplicar as mudanças: sudo systemctl restart sddm"
-else
-    echo "   ⚠ sddm não encontrado, pulando..."
+echo "[~] starship zsh"
+for pkg in starship zsh; do
+    stow_or_warn "$HOME" "$pkg"
+done
+
+# ── Hypr: estrutura mista, symlinks manuais
+echo ""
+echo "[manual] hypr"
+mkdir -p "$CONFIG/hypr" "$CONFIG/hyprland"
+symlink "$DOTS/hypr/hypr/hyprland.conf"          "$CONFIG/hypr/hyprland.conf"
+symlink "$DOTS/hypr/hypr/hyprland.lua"           "$CONFIG/hypr/hyprland.lua"
+symlink "$DOTS/hypr/hypr/hyprpaper.conf"         "$CONFIG/hypr/hyprpaper.conf"
+symlink "$DOTS/hypr/.config/hyprland/autostart.conf" "$CONFIG/hyprland/autostart.conf"
+[ -d "$DOTS/hypr/.config/hyprlock" ] && symlink "$DOTS/hypr/.config/hyprlock" "$CONFIG/hyprlock"
+
+# ── SDDM (requer sudo)
+echo ""
+if [ -d "$DOTS/sddm" ] && command -v stow &>/dev/null; then
+    read -rp "Instalar SDDM? (requer sudo) [s/N] " ans
+    if [[ "$ans" =~ ^[sS]$ ]]; then
+        sudo stow -t / sddm 2>&1 | grep -v "BUG in find_stowed_path" || true
+        echo "   ✓ SDDM instalado (reinicie: sudo systemctl restart sddm)"
+    fi
 fi
 
 echo ""
-echo "✅ Instalação concluída!"
-echo ""
-echo "📝 Próximos passos:"
-echo "   1. Verifique os symlinks criados: ls -la ~/.config/"
-echo "   2. Ajuste caminhos absolutos se necessário (ex: hypr/hypr/hyprpaper.conf)"
-echo "   3. Reinicie o Hyprland ou recarregue as configurações"
-echo "   4. Se instalou SDDM, reinicie: sudo systemctl restart sddm"
-echo ""
-
+echo "Instalação concluída."
+echo "  → Verifique: ls -la ~/.config/"
+echo "  → Recarregue: hyprctl reload"

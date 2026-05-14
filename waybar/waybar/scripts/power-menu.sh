@@ -5,8 +5,8 @@
 CONFIG_DIR="$HOME/.config/wlogout"
 
 if command -v wlogout &>/dev/null; then
-    # Kill any existing instance immediately
-    killall -q wlogout
+    # Kill only if running (minimal check, no delay)
+    pgrep -x wlogout > /dev/null && killall wlogout 2>/dev/null
     
     # Execute immediately - no sleeps, no waits, no delays
     exec wlogout \
