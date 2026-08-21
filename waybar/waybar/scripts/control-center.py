@@ -79,10 +79,11 @@ class Wifi(Window):
  def refresh(self,force=False): self.spin.start(); self.status.set_text("Procurando redes…"); background(lambda:self.scan(force),self.show)
  @staticmethod
  def scan(force=False):
-  enabled=run("nmcli","radio","wifi").stdout.strip()=="enabled"
+  radio=run("nmcli","radio","wifi");enabled=radio.stdout.strip()=="enabled"
   if not enabled:return enabled,[]
-  if force:run("nmcli","device","wifi","rescan")
-  output=run("nmcli","-t","--escape","yes","-f","IN-USE,SSID,SIGNAL,SECURITY","device","wifi","list","--rescan","no").stdout
+  result=run("nmcli","-t","--escape","yes","-f","IN-USE,SSID,SIGNAL,SECURITY","device","wifi","list","--rescan","yes" if force else "no")
+  if result.returncode:raise RuntimeError(result.stderr.strip() or "Falha ao consultar redes")
+  output=result.stdout
   found=[]; seen=set()
   for line in output.splitlines():
    safe=line.replace(r"\\","__BS__").replace(r"\:","__COLON__"); parts=safe.split(":",3)
@@ -98,19 +99,20 @@ class Wifi(Window):
   while child:=self.list.get_first_child():self.list.remove(child)
   if not enabled:self.status.set_text("Wi-Fi desligado");return False
   current=next((n["ssid"] for n in networks if n["active"]),None); self.status.set_text(f"Conectado a {current}" if current else "Não conectado")
+  if not networks:self.status.set_text("Nenhuma rede encontrada");return False
   for net in networks:
    row=Gtk.ListBoxRow(activatable=True,css_classes=["row"]); content=Gtk.Box(spacing=12)
    signal_icon="󰤨" if net["signal"]>=70 else "󰤥" if net["signal"]>=40 else "󰤟"; content.append(Gtk.Label(label=signal_icon))
    labels=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,hexpand=True); labels.append(Gtk.Label(label=net["ssid"],xalign=0,max_width_chars=34,css_classes=["panel-primary"])); detail="Conectado" if net["active"] else f'{net["signal"]}% · {"Protegida" if net["security"] not in ("","--") else "Aberta"}'; labels.append(Gtk.Label(label=detail,xalign=0,css_classes=["connected" if net["active"] else "muted"])); content.append(labels)
    if net["security"] not in ("","--"):content.append(Gtk.Image.new_from_icon_name("system-lock-screen-symbolic"))
-   row.set_child(content); row.connect("activate",self.select,net); self.list.append(row)
+   content.set_cursor_from_name("pointer");click=Gtk.GestureClick();click.connect("released",lambda _gesture,_press,_x,_y,network=net:self.select(None,network));content.add_controller(click);row.set_child(content);self.list.append(row)
   return False
  def select(self,_row,net):
   if net["active"]:background(lambda:run("nmcli","connection","down","id",net["ssid"]),lambda *_:self.refresh());return
   def saved_done(result,_error):
    if result.returncode==0:self.refresh();return False
    if net["security"] in ("","--"):self.connect_network(net,None);return False
-   dialog=Adw.AlertDialog(heading=f'Conectar a “{net["ssid"]}”',body="Digite a senha da rede."); password=Gtk.PasswordEntry(show_peek_icon=True,activates_default=True,margin_top=8,margin_bottom=8,margin_start=8,margin_end=8); dialog.set_extra_child(password); dialog.add_response("cancel","Cancelar");dialog.add_response("connect","Conectar");dialog.set_response_appearance("connect",Adw.ResponseAppearance.SUGGESTED);dialog.set_default_response("connect");dialog.set_close_response("cancel");dialog.connect("response",lambda _d,r:self.connect_network(net,password.get_text()) if r=="connect" else None);dialog.present(self);return False
+   dialog=Adw.AlertDialog(heading=f'Conectar a “{net["ssid"]}”',body="Digite a senha da rede.");content=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,width_request=430,margin_top=10,margin_bottom=8,margin_start=8,margin_end=8);password=Gtk.PasswordEntry(show_peek_icon=True,activates_default=True,placeholder_text="Senha");content.append(password);dialog.set_extra_child(content);dialog.add_response("cancel","Cancelar");dialog.add_response("connect","Conectar");dialog.set_response_appearance("connect",Adw.ResponseAppearance.SUGGESTED);dialog.set_default_response("connect");dialog.set_close_response("cancel");dialog.connect("response",lambda _d,r:self.connect_network(net,password.get_text()) if r=="connect" else None);dialog.present(self);GLib.idle_add(lambda:(password.grab_focus(),False)[1]);return False
   background(lambda:run("nmcli","connection","up","id",net["ssid"]),saved_done)
  def connect_network(self,net,password):
   self.status.set_text(f'Conectando a {net["ssid"]}…')
