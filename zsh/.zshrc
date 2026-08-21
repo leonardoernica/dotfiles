@@ -45,8 +45,11 @@ eval "$(starship init zsh)"
 
 # --- OUTRAS CONFIGURAÇÕES GERAIS (Mantenha se necessário) ---
 
-# Adicione seu Path do Flutter (Se ainda for necessário)
-export PATH="$PATH:$HOME/development/flutter/bin"
-
 # Alias for Claude Code (local build)
 alias claudinho='/home/lzin/projects/claudinho-code/claude-code/dist/bin/claude-code'
+
+# Keep preferred user tool directories first and deduplicate the linked
+# zsh `path`/`PATH` values without discarding system directories.
+typeset -U path
+path=("$HOME/.local/bin" "$HOME/development/flutter/bin" $path)
+export PATH

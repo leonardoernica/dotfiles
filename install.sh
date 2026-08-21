@@ -26,6 +26,14 @@ symlink() {
     echo "   ✓ $(basename "$dst")"
 }
 
+remove_broken_link() {
+    local path="$1"
+    if [ -L "$path" ] && [ ! -e "$path" ]; then
+        rm -- "$path"
+        echo "   ✓ link antigo removido: $(basename "$path")"
+    fi
+}
+
 echo "Instalando dotfiles..."
 echo ""
 
@@ -44,6 +52,9 @@ if [ -d "$DOTS/waybar/waybar/scripts" ]; then
         [ -f "$script" ] && symlink "$script" "$CONFIG/waybar/scripts/$(basename "$script")"
     done
 fi
+for legacy in wifi-menu.sh preload-wlogout.sh wlogout-daemon.sh; do
+    remove_broken_link "$CONFIG/waybar/scripts/$legacy"
+done
 
 # ── Pacotes com estrutura package/.hidden/ → ~/
 # (usa stow -t ~)
@@ -53,14 +64,14 @@ for pkg in starship zsh; do
     stow_or_warn "$HOME" "$pkg"
 done
 
-# ── Hypr: estrutura mista, symlinks manuais
+# ── Hypr: Lua é a configuração principal desde Hyprland 0.55.
+# O .conf permanece versionado somente como fallback para versões antigas.
 echo ""
 echo "[manual] hypr"
-mkdir -p "$CONFIG/hypr" "$CONFIG/hyprland"
+mkdir -p "$CONFIG/hypr"
 symlink "$DOTS/hypr/hypr/hyprland.conf"          "$CONFIG/hypr/hyprland.conf"
 symlink "$DOTS/hypr/hypr/hyprland.lua"           "$CONFIG/hypr/hyprland.lua"
 symlink "$DOTS/hypr/hypr/hyprpaper.conf"         "$CONFIG/hypr/hyprpaper.conf"
-symlink "$DOTS/hypr/.config/hyprland/autostart.conf" "$CONFIG/hyprland/autostart.conf"
 [ -d "$DOTS/hypr/.config/hyprlock" ] && symlink "$DOTS/hypr/.config/hyprlock" "$CONFIG/hyprlock"
 
 # ── Libinput quirks (requer sudo) — botão direito físico do touchpad

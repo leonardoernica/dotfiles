@@ -35,9 +35,9 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("waybar")
     hl.exec_cmd("hyprpaper")
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
-    hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
-    hl.exec_cmd("/usr/lib/xdg-desktop-portal")
-    hl.exec_cmd("/usr/lib/xdg-desktop-portal-hyprland")
+    -- Export the complete session environment before apps request portals.
+    -- xdg-desktop-portal and XDPH are activated automatically through D-Bus.
+    hl.exec_cmd("dbus-update-activation-environment --systemd --all")
     hl.exec_cmd(terminal)
     hl.exec_cmd("chromium", { workspace = "2 silent" })
     hl.exec_cmd(file_manager, { workspace = "3 silent" })
