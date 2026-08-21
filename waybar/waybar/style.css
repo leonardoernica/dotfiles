@@ -127,6 +127,10 @@ tooltip {
     /* Yellow */
 }
 
+#custom-todo.all-clear { color: #a6e3a1; }
+#custom-todo.due-today { color: #f9e2af; }
+#custom-todo.overdue { color: #f38ba8; }
+
 /* Groups - Unified look */
 #group-hardware,
 #group-connectivity,

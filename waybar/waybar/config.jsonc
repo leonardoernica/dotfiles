@@ -60,6 +60,7 @@
     "custom/todo": {
         "format": "☑ {}",
         "exec": "~/.config/waybar/scripts/todo.sh count",
+        "return-type": "json",
         "on-click": "~/.config/waybar/scripts/control-center.py todo",
         "on-click-right": "~/.config/waybar/scripts/control-center.py todo",
         "interval": 30,

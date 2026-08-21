@@ -59,9 +59,9 @@ def action_icon_button(icon,tip,css,callback):
 class Window(Adw.ApplicationWindow):
  def __init__(self,app,title):
   super().__init__(application=app,title=title,default_width=520,default_height=620,resizable=False)
-  view=Adw.ToolbarView(); header=Adw.HeaderBar(); header.set_title_widget(Gtk.Label(label=title,css_classes=["title"])); view.add_top_bar(header)
+  view=Adw.ToolbarView(); header=Adw.HeaderBar();header.set_decoration_layout(":close");header.set_title_widget(Gtk.Label(label=title,css_classes=["title"])); view.add_top_bar(header)
   self.box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=14,css_classes=["panel"]); self.toasts=Adw.ToastOverlay(child=self.box); view.set_content(self.toasts); self.set_content(view)
-  keys=Gtk.EventControllerKey(); keys.connect("key-pressed",lambda _c,key,*_: self.close() or True if key==Gdk.KEY_Escape else False); self.add_controller(keys)
+  keys=Gtk.EventControllerKey();keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE);keys.connect("key-pressed",lambda _c,key,*_: self.close() or True if key==Gdk.KEY_Escape else False); self.add_controller(keys)
  def toast(self,text): self.toasts.add_toast(Adw.Toast(title=text,timeout=3))
 
 class Wifi(Window):
@@ -202,7 +202,15 @@ class Todo(Window):
   dialog=Adw.AlertDialog(heading="Excluir permanentemente?",body=task["title"]);dialog.add_response("back","Voltar");dialog.add_response("delete","Excluir");dialog.set_response_appearance("delete",Adw.ResponseAppearance.DESTRUCTIVE);dialog.set_close_response("back");dialog.connect("response",lambda _d,r:self.delete_task(task["id"]) if r=="delete" else None);dialog.present(self)
  def delete_task(self,task_id):self.save([task for task in self.tasks() if task["id"]!=task_id])
  def cancel_task(self,task):
-  dialog=Adw.AlertDialog(heading="Cancelar tarefa?",body="Você pode registrar uma justificativa ou deixar em branco.");content=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,width_request=480,margin_top=10,margin_bottom=8,margin_start=8,margin_end=8);reason=Gtk.Entry(placeholder_text="Justificativa (opcional)");content.append(reason);dialog.set_extra_child(content);dialog.add_response("back","Voltar");dialog.add_response("cancel","Cancelar tarefa");dialog.set_response_appearance("cancel",Adw.ResponseAppearance.DESTRUCTIVE);dialog.set_close_response("back");dialog.connect("response",lambda _d,r:self.set_status(task["id"],"cancelled",reason.get_text().strip()) if r=="cancel" else None);dialog.present(self)
+  dialog=Adw.AlertDialog(heading="Cancelar tarefa?",body="Você pode registrar uma justificativa ou deixar em branco.");content=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,width_request=480,margin_top=10,margin_bottom=8,margin_start=8,margin_end=8);reason=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,height_request=110,css_classes=["description-box"]);content.append(reason);dialog.set_extra_child(content);dialog.add_response("back","Voltar");dialog.add_response("cancel","Cancelar tarefa");dialog.set_response_appearance("cancel",Adw.ResponseAppearance.DESTRUCTIVE);dialog.set_close_response("back")
+  def response(_dialog,action):
+   buffer=reason.get_buffer();text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False).strip()
+   if action=="cancel":self.set_status(task["id"],"cancelled",text)
+  dialog.connect("response",response);keys=Gtk.EventControllerKey()
+  def key_pressed(_controller,key,_code,state):
+   if key in (Gdk.KEY_Return,Gdk.KEY_KP_Enter) and not state&Gdk.ModifierType.SHIFT_MASK:dialog.emit("response","cancel");dialog.close();return True
+   return False
+  keys.connect("key-pressed",key_pressed);reason.add_controller(keys);dialog.present(self);GLib.idle_add(lambda:(reason.grab_focus(),False)[1])
  def task_details(self,task):
   dialog=Adw.AlertDialog(heading=task["title"]);details=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10,width_request=500,margin_top=8,margin_bottom=8,margin_start=8,margin_end=8)
   if task.get("description"):details.append(Gtk.Label(label=task["description"],xalign=0,wrap=True,selectable=False,css_classes=["detail-description"]))
@@ -231,7 +239,11 @@ class Todo(Window):
      if current["id"]==task["id"]:current.update(title=value,description=details,priority=self.PRIORITY_KEYS[priority.get_selected()],due_date=due)
    else:tasks.append({"id":str(uuid.uuid4()),"title":value,"description":details,"created_at":datetime.now().isoformat(timespec="seconds"),"due_date":due,"priority":self.PRIORITY_KEYS[priority.get_selected()],"status":"open","order":sum(x.get("status","open")=="open" for x in tasks),"closed_at":None,"cancel_reason":""})
    self.save(tasks)
-  dialog.connect("response",response);dialog.present(self);GLib.idle_add(lambda:(title.grab_focus(),False)[1])
+  dialog.connect("response",response);description_keys=Gtk.EventControllerKey()
+  def description_key(_controller,key,_code,state):
+   if key in (Gdk.KEY_Return,Gdk.KEY_KP_Enter) and not state&Gdk.ModifierType.SHIFT_MASK:dialog.emit("response","save");dialog.close();return True
+   return False
+  description_keys.connect("key-pressed",description_key);description.add_controller(description_keys);dialog.present(self);GLib.idle_add(lambda:(title.grab_focus(),False)[1])
 
 class App(Adw.Application):
  def __init__(self,mode):super().__init__(application_id=f"com.leonardoernica.Waybar.{mode.title()}",flags=Gio.ApplicationFlags.DEFAULT_FLAGS);self.mode=mode;self.window=None
