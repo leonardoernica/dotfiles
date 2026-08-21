@@ -1,5 +1,5 @@
 -- Hyprland 0.56+ configuration
-local terminal, file_manager = "kitty", "dolphin"
+local terminal, file_manager, chatgpt = "kitty", "dolphin", "chatgpt"
 local menu, main_mod = "rofi -show drun -show-icons", "SUPER"
 
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
@@ -40,12 +40,12 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("dbus-update-activation-environment --systemd --all")
     hl.exec_cmd(terminal)
     hl.exec_cmd("chromium", { workspace = "2 silent" })
-    hl.exec_cmd(file_manager, { workspace = "3 silent" })
+    hl.exec_cmd(chatgpt, { workspace = "3 silent" })
 end)
 
 hl.window_rule({ name = "kitty-workspace", match = { class = "^kitty$" }, workspace = "1" })
 hl.window_rule({ name = "chromium-workspace", match = { class = "^chromium$" }, workspace = "2" })
-hl.window_rule({ name = "dolphin-workspace", match = { class = "^org.kde.dolphin$" }, workspace = "3" })
+hl.window_rule({ name = "chatgpt-workspace", match = { class = "^Chatgpt$" }, workspace = "3" })
 hl.layer_rule({
     name = "blur-logout", match = { namespace = "^(wlogout|logout_dialog)$" },
     blur = true, ignore_alpha = 0,

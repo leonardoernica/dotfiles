@@ -19,6 +19,12 @@ setopt HIST_REDUCE_BLANKS
 setopt HIST_FIND_NO_DUPS
 # ====================================
 
+# Clear both the visible screen and Kitty's scrollback. The next prompt is
+# rendered normally after the function returns.
+clear() {
+    printf '\e[H\e[3J'
+}
+
 # --- ZINIT CORE E PLUGINS ---
 # Instalar o Zinit (se ele não estiver instalado, ele se instala sozinho)
 if [ ! -d "${ZINIT_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/zinit}/zinit.git" ]; then
