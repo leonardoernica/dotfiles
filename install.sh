@@ -36,6 +36,15 @@ for pkg in kitty waybar wlogout gtk-3.0 gtk-4.0; do
     stow_or_warn "$CONFIG" "$pkg"
 done
 
+# Existing ~/.config/waybar directories may contain links created by an older
+# version. Ensure every current helper is exposed, including newly added ones.
+if [ -d "$DOTS/waybar/waybar/scripts" ]; then
+    mkdir -p "$CONFIG/waybar/scripts"
+    for script in "$DOTS"/waybar/waybar/scripts/*; do
+        [ -f "$script" ] && symlink "$script" "$CONFIG/waybar/scripts/$(basename "$script")"
+    done
+fi
+
 # ── Pacotes com estrutura package/.hidden/ → ~/
 # (usa stow -t ~)
 echo ""
