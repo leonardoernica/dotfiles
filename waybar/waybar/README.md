@@ -5,7 +5,8 @@ A premium, modern Waybar configuration designed for Arch Linux + Hyprland, featu
 ## Features
 
 - **Modern Design**: Rounded "pill" modules, blur effects, and neon accents (Catppuccin Mocha inspired colors).
-- **Productivity**: Integrated To-Do list manager and Walker application launcher.
+- **Productivity**: Native GTK task manager and Rofi application launcher.
+- **Connectivity**: Native GTK Wi-Fi panel with connection, password and radio controls.
 - **Hardware Monitoring**: CPU, RAM, Battery, and Network stats.
 - **Hyprland Integration**: Workspaces with persistent indicators and window titles.
 - **Interactive**: Clickable modules (Clock -> Calendar, Volume -> Pavucontrol).
@@ -15,12 +16,12 @@ A premium, modern Waybar configuration designed for Arch Linux + Hyprland, featu
 Ensure you have the following installed:
 
 - **Waybar** (v0.14.0+)
-- **Walker** (Application launcher)
+- **Rofi** (Application launcher)
+- **GTK 4, libadwaita and PyGObject** (native Wi-Fi and task panels)
 - **Nerd Fonts** (e.g., `ttf-jetbrains-mono-nerd`)
 - **Pavucontrol** (For volume control)
 - **Network Manager** (`nm-connection-editor` for Wifi menu)
 - **Blueman** (`blueman-manager` for Bluetooth menu)
-- **Terminal** (Kitty, Alacritty, or Foot supported for adding tasks)
 
 ## Installation
 
@@ -45,7 +46,7 @@ Ensure you have the following installed:
 3.  **Make script executable**:
     (If you copied, ensure the script is executable)
     ```bash
-    chmod +x ~/.config/waybar/scripts/todo.sh
+    chmod +x ~/.config/waybar/scripts/todo.sh ~/.config/waybar/scripts/control-center.py
     ```
 
 4.  **Reload Waybar**:
@@ -57,7 +58,7 @@ Ensure you have the following installed:
 ## Configuration
 
 ### Modules
-- **Left**: Walker Menu, Workspaces (Page Navigator style), Window Title.
+- **Left**: Rofi Menu, Workspaces (Page Navigator style), Window Title.
 - **Center**: Clock & Date.
 - **Right**: To-Do (Click to manage), Hardware Group, Connectivity Group, Media Group, Battery.
 
@@ -68,6 +69,6 @@ Ensure you have the following installed:
 ## Troubleshooting
 
 - **Icons missing?** Make sure you have a Nerd Font installed and set in `style.css`.
-- **Walker not opening?** Ensure `walker` is in your PATH.
-- **To-Do list not opening?** The script uses `walker -d` for the menu. Ensure `walker` is installed.
+- **Launcher not opening?** Ensure `rofi` is installed (`sudo pacman -S rofi`).
+- **Wi-Fi or To-Do not opening?** Install `python-gobject gtk4 libadwaita`; NetworkManager must also be running for Wi-Fi.
 - **Wifi/Bluetooth click not working?** Ensure `nm-connection-editor` and `blueman` are installed.

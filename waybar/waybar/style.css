@@ -38,7 +38,7 @@ tooltip {
 }
 
 #workspaces,
-#custom-walker,
+#custom-launcher,
 #custom-todo,
 #clock,
 #group-hardware,
@@ -107,7 +107,7 @@ tooltip {
  * Module Specifics 
  */
 
-#custom-walker {
+#custom-launcher {
     color: #89b4fa;
     /* Blue logo */
     font-size: 18px;

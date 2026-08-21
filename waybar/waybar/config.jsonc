@@ -10,7 +10,7 @@
     "margin-left": 20,
     "margin-right": 20,
     "modules-left": [
-        "custom/walker",
+        "custom/launcher",
         "hyprland/workspaces",
         "hyprland/window"
     ],
@@ -52,18 +52,19 @@
             "default": "•"
         }
     },
-    "custom/walker": {
+    "custom/launcher": {
         "format": "󰣇 ",
-        "on-click": "walker",
+        "on-click": "rofi -show drun -show-icons",
         "tooltip": false
     },
     "custom/todo": {
         "format": "☑ {}",
         "exec": "~/.config/waybar/scripts/todo.sh count",
-        "on-click": "~/.config/waybar/scripts/todo.sh menu",
-        "on-click-right": "~/.config/waybar/scripts/todo.sh add",
-        "interval": 5,
-        "tooltip": true
+        "on-click": "~/.config/waybar/scripts/control-center.py todo",
+        "on-click-right": "~/.config/waybar/scripts/control-center.py todo",
+        "interval": 30,
+        "signal": 8,
+        "tooltip-format": "Clique: gerenciar tarefas\nBotão direito: adicionar rapidamente"
     },
     "clock": {
         "format": "{:%H:%M:%S}",
@@ -121,7 +122,8 @@
         "tooltip-format": "{essid} ({signalStrength}%)\n{ifname}\n{ipaddr}/{cidr}",
         "format-linked": "{ifname} (No IP)",
         "format-disconnected": "󰤭   Offline",
-        "on-click": "~/.config/waybar/scripts/wifi-menu.sh"
+        "on-click": "~/.config/waybar/scripts/control-center.py wifi",
+        "on-click-right": "nm-connection-editor"
     },
     "bluetooth": {
         "format": "󰂯 {status}",
@@ -163,7 +165,7 @@
         "on-click": "pavucontrol"
     },
     "backlight": {
-        "device": "intel_backlight",
+        "device": "amdgpu_bl1",
         "format": "{icon}   {percent}%",
         "format-icons": [
             "󰃞",

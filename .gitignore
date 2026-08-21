@@ -17,6 +17,8 @@ Thumbs.db
 
 # Logs
 *.log
+__pycache__/
+*.py[cod]
 
 # Arquivos pessoais que não devem ser versionados
 # (adicione aqui arquivos específicos se necessário)
