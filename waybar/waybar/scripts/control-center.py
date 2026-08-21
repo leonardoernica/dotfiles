@@ -31,7 +31,7 @@ button { border-radius: 9px; }
 entry, textview { background: #242833; color: #f5f7fa; caret-color: #f5f7fa; }
 .description-box { background: #242833; border: 1px solid rgba(255,255,255,.10); border-radius: 10px; padding: 8px; }
 .tabs { background: transparent; padding: 0; }
-.action-button { min-width: 26px; min-height: 26px; border-radius: 7px; padding: 4px; font-size: 16px; font-weight: 800; background: transparent; border: none; box-shadow: none; }
+.action-button { min-width: 22px; min-height: 24px; border-radius: 7px; padding: 2px; background: transparent; border: none; box-shadow: none; }
 .action-button:hover { background: rgba(255,255,255,.07); }
 .action-complete { color: #4ade80; }
 .action-cancel { color: #fb7185; }
@@ -181,7 +181,7 @@ class Todo(Window):
    closed=datetime.fromisoformat(task["closed_at"]).strftime("%d/%m/%Y às %H:%M") if task.get("closed_at") else "data desconhecida";status_text=(f"Concluída em {closed}" if task["status"]=="completed" else f"Cancelada em {closed}");body.append(Gtk.Label(label=status_text,xalign=0,css_classes=["status-completed" if task["status"]=="completed" else "status-cancelled"]))
   content.append(body);body.set_cursor_from_name("pointer");click=Gtk.GestureClick();click.connect("released",lambda *_:self.task_details(task));body.add_controller(click)
   if task["status"]=="open":
-   actions=Gtk.Box(spacing=8);actions.append(action_button("✓","Concluir","action-complete",lambda *_:self.set_status(task["id"],"completed")));actions.append(action_button("×","Cancelar","action-cancel",lambda *_:self.cancel_task(task)));actions.append(action_icon_button("user-trash-symbolic","Excluir","action-delete",lambda *_:self.confirm_delete(task)));content.append(actions)
+   actions=Gtk.Box(spacing=1);actions.append(action_icon_button("object-select-symbolic","Concluir","action-complete",lambda *_:self.set_status(task["id"],"completed")));actions.append(action_icon_button("window-close-symbolic","Cancelar","action-cancel",lambda *_:self.cancel_task(task)));actions.append(action_icon_button("user-trash-symbolic","Excluir","action-delete",lambda *_:self.confirm_delete(task)));content.append(actions)
    source=Gtk.DragSource(actions=Gdk.DragAction.MOVE);source.connect("prepare",lambda *_:Gdk.ContentProvider.new_for_value(task["id"]));handle.add_controller(source)
    target=Gtk.DropTarget.new(str,Gdk.DragAction.MOVE);target.connect("drop",lambda _t,value,_x,_y:self.reorder(value,task["id"]));row.add_controller(target)
   else:content.append(action_icon_button("user-trash-symbolic","Excluir","action-delete",lambda *_:self.confirm_delete(task)))
