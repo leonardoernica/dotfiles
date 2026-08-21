@@ -30,7 +30,11 @@ button { border-radius: 9px; }
 .due-soon { color: #fbbf24; font-weight: 600; }
 entry, textview { background: #242833; color: #f5f7fa; caret-color: #f5f7fa; }
 .description-box { background: #242833; border: 1px solid rgba(255,255,255,.10); border-radius: 10px; padding: 8px; }
-.tabs { background: #1b1e26; border-radius: 10px; padding: 4px; }
+.tabs { background: transparent; padding: 0; }
+.action-button { min-width: 30px; min-height: 30px; border-radius: 9px; font-weight: 800; }
+.action-complete { background: #173d2a; color: #4ade80; border: 1px solid #286442; }
+.action-cancel { background: #493514; color: #fbbf24; border: 1px solid #76551c; }
+.action-delete { background: #4c1d24; color: #fb7185; border: 1px solid #7f2937; }
 .status-completed { color: #4ade80; font-weight: 700; }
 .status-cancelled { color: #fb7185; font-weight: 700; }
 .drag-handle { color: #6b7280; font-size: 18px; }
@@ -45,6 +49,8 @@ def background(work,done):
  threading.Thread(target=worker,daemon=True).start()
 def icon_button(icon,tip,callback):
  b=Gtk.Button(icon_name=icon,tooltip_text=tip); b.add_css_class("flat"); b.connect("clicked",callback); return b
+def action_button(label,tip,css,callback):
+ b=Gtk.Button(label=label,tooltip_text=tip,css_classes=["action-button",css]);b.connect("clicked",callback);return b
 
 class Window(Adw.ApplicationWindow):
  def __init__(self,app,title):
@@ -153,7 +159,7 @@ class Todo(Window):
   handle=None
   if task["status"]=="open":handle=Gtk.Label(label="⋮⋮",tooltip_text="Arraste para reordenar",css_classes=["drag-handle"]);content.append(handle)
   else:content.append(Gtk.Label(label="✓" if task["status"]=="completed" else "●",css_classes=["status-completed" if task["status"]=="completed" else "status-cancelled"]))
-  body=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=3,hexpand=True);top=Gtk.Box(spacing=7);top.append(Gtk.Label(label=task["title"],xalign=0,hexpand=True,wrap=True,css_classes=["task-title"]));priority=task.get("priority","medium");label={"high":"Alta","medium":"Média","low":"Baixa"}[priority];top.append(Gtk.Label(label=label,css_classes=["badge",f"priority-{priority}"]));body.append(top)
+  body=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=3,hexpand=True);body.append(Gtk.Label(label=task["title"],xalign=0,hexpand=True,wrap=True,css_classes=["task-title"]));priority=task.get("priority","medium");priority_label={"high":"Alta","medium":"Média","low":"Baixa"}[priority]
   description=task.get("description","").strip()
   if description:
    preview=description.replace("\n"," ");preview=preview[:105].rstrip()+("…" if len(preview)>105 else "");body.append(Gtk.Label(label=preview,xalign=0,wrap=False,css_classes=["muted"]))
@@ -164,12 +170,13 @@ class Todo(Window):
    elif delta==0:deadline="Vence hoje";css="due-soon"
    elif delta==1:deadline="Vence amanhã";css="due-soon"
    else:deadline=f"Prazo: {due_date.strftime('%d/%m/%Y')}";css="muted"
-   meta=Gtk.Box(spacing=8);meta.append(Gtk.Label(label=created,xalign=0,css_classes=["muted"]));meta.append(Gtk.Label(label="•"));meta.append(Gtk.Label(label=deadline,xalign=0,css_classes=[css]));body.append(meta)
-  else:body.append(Gtk.Label(label=f"{created}  •  Sem prazo",xalign=0,css_classes=["muted"]))
+   meta=Gtk.Box(spacing=8);meta.append(Gtk.Label(label=priority_label,css_classes=["badge",f"priority-{priority}"]));meta.append(Gtk.Label(label=created,xalign=0,css_classes=["muted"]));meta.append(Gtk.Label(label="•"));meta.append(Gtk.Label(label=deadline,xalign=0,css_classes=[css]));body.append(meta)
+  else:
+   meta=Gtk.Box(spacing=8);meta.append(Gtk.Label(label=priority_label,css_classes=["badge",f"priority-{priority}"]));meta.append(Gtk.Label(label=f"{created}  •  Sem prazo",xalign=0,css_classes=["muted"]));body.append(meta)
   if task["status"]!="open":body.append(Gtk.Label(label="Concluída" if task["status"]=="completed" else "Cancelada",xalign=0,css_classes=["status-completed" if task["status"]=="completed" else "status-cancelled"]))
   content.append(body);body.set_cursor_from_name("pointer");click=Gtk.GestureClick();click.connect("released",lambda *_:self.task_details(task));body.add_controller(click)
   if task["status"]=="open":
-   actions=Gtk.Box(spacing=3);actions.append(icon_button("emblem-ok-symbolic","Concluir",lambda *_:self.set_status(task["id"],"completed")));actions.append(icon_button("process-stop-symbolic","Cancelar",lambda *_:self.cancel_task(task)));actions.append(icon_button("user-trash-symbolic","Excluir",lambda *_:self.confirm_delete(task)));content.append(actions)
+   actions=Gtk.Box(spacing=6);actions.append(action_button("✓","Concluir","action-complete",lambda *_:self.set_status(task["id"],"completed")));actions.append(action_button("⊘","Cancelar","action-cancel",lambda *_:self.cancel_task(task)));actions.append(action_button("×","Excluir","action-delete",lambda *_:self.confirm_delete(task)));content.append(actions)
    source=Gtk.DragSource(actions=Gdk.DragAction.MOVE);source.connect("prepare",lambda *_:Gdk.ContentProvider.new_for_value(task["id"]));handle.add_controller(source)
    target=Gtk.DropTarget.new(str,Gdk.DragAction.MOVE);target.connect("drop",lambda _t,value,_x,_y:self.reorder(value,task["id"]));row.add_controller(target)
   row.set_child(content);return row
@@ -193,12 +200,9 @@ class Todo(Window):
  def task_details(self,task):
   dialog=Adw.AlertDialog(heading=task["title"]);details=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10,width_request=500,margin_top=8,margin_bottom=8,margin_start=8,margin_end=8)
   if task.get("description"):details.append(Gtk.Label(label=task["description"],xalign=0,wrap=True,selectable=True))
-  priority_label={"low":"Baixa","medium":"Média","high":"Alta"}.get(task.get("priority"),"Baixa");created_label=datetime.fromisoformat(task["created_at"]).strftime("%d/%m/%Y");details.append(Gtk.Label(label=f"Prioridade: {priority_label}  •  Criada em {created_label}",xalign=0,css_classes=["muted"]));dialog.set_extra_child(details);dialog.add_response("close","Fechar");dialog.set_close_response("close")
-  if task["status"]=="open":dialog.add_response("edit","Editar");dialog.add_response("complete","Concluir");dialog.add_response("cancel-task","Cancelar tarefa");dialog.set_response_appearance("complete",Adw.ResponseAppearance.SUGGESTED);dialog.set_response_appearance("cancel-task",Adw.ResponseAppearance.DESTRUCTIVE)
+  priority_label={"low":"Baixa","medium":"Média","high":"Alta"}.get(task.get("priority"),"Baixa");created_label=datetime.fromisoformat(task["created_at"]).strftime("%d/%m/%Y");details.append(Gtk.Label(label=f"Prioridade: {priority_label}  •  Criada em {created_label}",xalign=0,css_classes=["muted"]));dialog.set_extra_child(details);dialog.add_response("close","Fechar");dialog.add_response("edit","Editar");dialog.set_response_appearance("edit",Adw.ResponseAppearance.SUGGESTED);dialog.set_close_response("close")
   def response(_d,action):
    if action=="edit":self.task_form(task)
-   elif action=="complete":self.set_status(task["id"],"completed")
-   elif action=="cancel-task":self.cancel_task(task)
   dialog.connect("response",response);dialog.present(self)
  def task_form(self,task=None):
   editing=task is not None;dialog=Adw.AlertDialog(heading="Editar tarefa" if editing else "Nova tarefa",body="Defina o que importa e quando precisa estar pronto.")
