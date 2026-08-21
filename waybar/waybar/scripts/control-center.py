@@ -8,27 +8,28 @@ gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 CSS=b"""
-window { background: #f5f5f7; color: #1d1d1f; }
-headerbar { background: rgba(255,255,255,.94); box-shadow: 0 1px 0 rgba(0,0,0,.08); }
+window { background: #111318; color: #f5f7fa; }
+headerbar { background: rgba(24,27,34,.96); box-shadow: 0 1px 0 rgba(255,255,255,.08); }
 .panel { padding: 18px; }
-.card { background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 14px; }
+.card { background: #1b1e26; border: 1px solid rgba(255,255,255,.09); border-radius: 14px; }
 .hero { padding: 16px; }
 .title { font-size: 20px; font-weight: 700; }
-.subtitle, .muted { color: #6e6e73; }
-.row { padding: 11px 13px; border-bottom: 1px solid rgba(0,0,0,.06); }
-.panel-primary { color: #1d1d1f; font-weight: 600; }
-.connected { color: #14833b; font-weight: 600; }
+.subtitle, .muted { color: #9ca3af; }
+.row { padding: 11px 13px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.panel-primary { color: #f5f7fa; font-weight: 600; }
+.connected { color: #4ade80; font-weight: 600; }
 .pill { border-radius: 999px; padding: 7px 14px; }
 entry { border-radius: 10px; min-height: 38px; }
 button { border-radius: 9px; }
-.task-title { color: #1d1d1f; font-size: 15px; font-weight: 600; }
+.task-title { color: #f5f7fa; font-size: 15px; font-weight: 600; }
 .badge { border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 700; }
-.priority-high { background: #ffe3e3; color: #b42318; }
-.priority-medium { background: #fff1cc; color: #8a5700; }
-.priority-low { background: #e4efff; color: #175cd3; }
-.overdue { color: #b42318; font-weight: 700; }
-.due-soon { color: #8a5700; font-weight: 600; }
-entry { background: #ffffff; color: #1d1d1f; caret-color: #1d1d1f; }
+.priority-high { background: #4c1d24; color: #fda4af; }
+.priority-medium { background: #493514; color: #fcd34d; }
+.priority-low { background: #172d50; color: #93c5fd; }
+.overdue { color: #fb7185; font-weight: 700; }
+.due-soon { color: #fbbf24; font-weight: 600; }
+entry, textview { background: #242833; color: #f5f7fa; caret-color: #f5f7fa; }
+.description-box { background: #242833; border: 1px solid rgba(255,255,255,.10); border-radius: 10px; padding: 8px; }
 """
 
 def run(*args): return subprocess.run(args,text=True,capture_output=True)
@@ -120,6 +121,7 @@ class Todo(Window):
   add=Gtk.Button(label="＋ Nova tarefa",css_classes=["suggested-action","pill"]);add.connect("clicked",lambda *_:self.task_form());hero.append(add);self.box.append(hero)
   self.counter=Gtk.Label(xalign=0,css_classes=["subtitle"]);self.box.append(self.counter)
   self.list=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,css_classes=["card"]);self.box.append(Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,child=self.list));self.reload()
+  shortcuts=Gtk.EventControllerKey();shortcuts.connect("key-pressed",lambda _c,key,_code,state:(self.task_form() or True) if key==Gdk.KEY_n and state&Gdk.ModifierType.CONTROL_MASK else False);self.add_controller(shortcuts)
  def migrate(self):
   if self.path.exists():return
   old=[x.strip() for x in self.legacy.read_text().splitlines() if x.strip()] if self.legacy.exists() else []
@@ -143,6 +145,8 @@ class Todo(Window):
  def task_row(self,task):
   row=Gtk.Box(spacing=10,css_classes=["row"]);done=Gtk.CheckButton(tooltip_text="Marcar como concluída");done.connect("toggled",lambda *_:self.remove(task["id"]));row.append(done)
   body=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=3,hexpand=True);top=Gtk.Box(spacing=7);top.append(Gtk.Label(label=task["title"],xalign=0,hexpand=True,wrap=True,css_classes=["task-title"]));priority=task.get("priority","medium");label={"high":"Alta","medium":"Média","low":"Baixa"}[priority];top.append(Gtk.Label(label=label,css_classes=["badge",f"priority-{priority}"]));body.append(top)
+  description=task.get("description","").strip()
+  if description:body.append(Gtk.Label(label=description,xalign=0,wrap=True,max_width_chars=42,lines=2,css_classes=["muted"]))
   created=datetime.fromisoformat(task["created_at"]).strftime("Criada em %d/%m/%Y") if task.get("created_at") else "Data de criação desconhecida";due=task.get("due_date")
   if due:
    due_date=date.fromisoformat(due);delta=(due_date-date.today()).days
@@ -160,8 +164,10 @@ class Todo(Window):
   editing=task is not None;dialog=Adw.AlertDialog(heading="Editar tarefa" if editing else "Nova tarefa",body="Defina o que importa e quando precisa estar pronto.")
   form=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10,margin_top=10,margin_bottom=6,margin_start=6,margin_end=6)
   title=Gtk.Entry(placeholder_text="Título da tarefa",text=task["title"] if editing else "",activates_default=True);form.append(title)
-  priority_row=Gtk.Box(spacing=10);priority_row.append(Gtk.Label(label="Prioridade",xalign=0,hexpand=True,css_classes=["panel-primary"]));priority=Gtk.DropDown.new_from_strings(self.PRIORITIES);priority.set_selected(self.PRIORITY_KEYS.index(task.get("priority","medium")) if editing else 1);priority_row.append(priority);form.append(priority_row)
-  has_due=Gtk.CheckButton(label="Definir prazo",active=bool(task and task.get("due_date")));form.append(has_due);calendar=Gtk.Calendar(sensitive=has_due.get_active());form.append(calendar);has_due.connect("toggled",lambda b:calendar.set_sensitive(b.get_active()))
+  form.append(Gtk.Label(label="Descrição (opcional)",xalign=0,css_classes=["panel-primary"]))
+  description=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,height_request=72,css_classes=["description-box"]);description.get_buffer().set_text(task.get("description","") if editing else "");form.append(description)
+  priority_row=Gtk.Box(spacing=10);priority_row.append(Gtk.Label(label="Prioridade",xalign=0,hexpand=True,css_classes=["panel-primary"]));priority=Gtk.DropDown.new_from_strings(self.PRIORITIES);priority.set_selected(self.PRIORITY_KEYS.index(task.get("priority","low")) if editing else 0);priority_row.append(priority);form.append(priority_row)
+  has_due=Gtk.CheckButton(label="Definir prazo",active=bool(task and task.get("due_date")));form.append(has_due);calendar=Gtk.Calendar(visible=has_due.get_active());form.append(calendar);has_due.connect("toggled",lambda b:calendar.set_visible(b.get_active()))
   if editing and task.get("due_date"):
    selected=date.fromisoformat(task["due_date"]);calendar.select_day(GLib.DateTime.new_local(selected.year,selected.month,selected.day,0,0,0))
   dialog.set_extra_child(form);dialog.add_response("cancel","Cancelar");dialog.add_response("save","Salvar");dialog.set_response_appearance("save",Adw.ResponseAppearance.SUGGESTED);dialog.set_default_response("save");dialog.set_close_response("cancel")
@@ -169,16 +175,18 @@ class Todo(Window):
    value=re.sub(r"\s+"," ",title.get_text()).strip()
    if action!="save":return
    if not value:self.toast("Digite um título para a tarefa.");return
-   selected=calendar.get_date();due=f"{selected.get_year():04d}-{selected.get_month():02d}-{selected.get_day_of_month():02d}" if has_due.get_active() else None;tasks=self.tasks()
+   buffer=description.get_buffer();details=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False).strip();selected=calendar.get_date();due=f"{selected.get_year():04d}-{selected.get_month():02d}-{selected.get_day_of_month():02d}" if has_due.get_active() else None;tasks=self.tasks()
    if editing:
     for current in tasks:
-     if current["id"]==task["id"]:current.update(title=value,priority=self.PRIORITY_KEYS[priority.get_selected()],due_date=due)
-   else:tasks.append({"id":str(uuid.uuid4()),"title":value,"created_at":datetime.now().isoformat(timespec="seconds"),"due_date":due,"priority":self.PRIORITY_KEYS[priority.get_selected()]})
+     if current["id"]==task["id"]:current.update(title=value,description=details,priority=self.PRIORITY_KEYS[priority.get_selected()],due_date=due)
+   else:tasks.append({"id":str(uuid.uuid4()),"title":value,"description":details,"created_at":datetime.now().isoformat(timespec="seconds"),"due_date":due,"priority":self.PRIORITY_KEYS[priority.get_selected()]})
    self.save(tasks)
-  dialog.connect("response",response);dialog.present(self);GLib.idle_add(title.grab_focus)
+  dialog.connect("response",response);dialog.present(self);GLib.idle_add(lambda:(title.grab_focus(),False)[1])
 
 class App(Adw.Application):
  def __init__(self,mode):super().__init__(application_id=f"com.leonardoernica.Waybar.{mode.title()}",flags=Gio.ApplicationFlags.DEFAULT_FLAGS);self.mode=mode;self.window=None
+ def do_startup(self):
+  Adw.Application.do_startup(self);Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
  def do_activate(self):
   if not self.window:self.window=Wifi(self) if self.mode=="wifi" else Todo(self);self.window.connect("close-request",lambda *_:self.quit() or False)
   self.window.present()
