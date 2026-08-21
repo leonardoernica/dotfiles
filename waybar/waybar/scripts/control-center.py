@@ -30,6 +30,10 @@ button { border-radius: 9px; }
 .due-soon { color: #fbbf24; font-weight: 600; }
 entry, textview { background: #242833; color: #f5f7fa; caret-color: #f5f7fa; }
 .description-box { background: #242833; border: 1px solid rgba(255,255,255,.10); border-radius: 10px; padding: 8px; }
+.tabs { background: #1b1e26; border-radius: 10px; padding: 4px; }
+.status-completed { color: #4ade80; font-weight: 700; }
+.status-cancelled { color: #fb7185; font-weight: 700; }
+.drag-handle { color: #6b7280; font-size: 18px; }
 """
 
 def run(*args): return subprocess.run(args,text=True,capture_output=True)
@@ -119,8 +123,9 @@ class Todo(Window):
   hero=Gtk.Box(spacing=12,css_classes=["card","hero"]);copy=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,hexpand=True)
   copy.append(Gtk.Label(label="Organize seu dia",xalign=0,css_classes=["panel-primary"]));copy.append(Gtk.Label(label="Prioridades e prazos em um só lugar",xalign=0,css_classes=["subtitle"]));hero.append(copy)
   add=Gtk.Button(label="＋ Nova tarefa",css_classes=["suggested-action","pill"]);add.connect("clicked",lambda *_:self.task_form());hero.append(add);self.box.append(hero)
-  self.counter=Gtk.Label(xalign=0,css_classes=["subtitle"]);self.box.append(self.counter)
-  self.list=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,css_classes=["card"]);self.box.append(Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,child=self.list));self.reload()
+  tabs=Gtk.Box(homogeneous=True,css_classes=["tabs"]);self.open_tab=Gtk.ToggleButton(label="●  Open",active=True);self.closed_tab=Gtk.ToggleButton(label="✓  Closed",group=self.open_tab);self.open_tab.connect("toggled",lambda b:self.change_view("open") if b.get_active() else None);self.closed_tab.connect("toggled",lambda b:self.change_view("closed") if b.get_active() else None);tabs.append(self.open_tab);tabs.append(self.closed_tab);self.box.append(tabs)
+  self.view_status="open";self.counter=Gtk.Label(xalign=0,css_classes=["subtitle"]);self.box.append(self.counter)
+  self.list=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,css_classes=["card"]);self.empty=Gtk.Label(justify=Gtk.Justification.CENTER,css_classes=["subtitle"]);self.content_stack=Gtk.Stack(vexpand=True);self.content_stack.add_named(Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,child=self.list),"list");self.content_stack.add_named(self.empty,"empty");self.box.append(self.content_stack);self.reload()
   shortcuts=Gtk.EventControllerKey();shortcuts.connect("key-pressed",lambda _c,key,_code,state:(self.task_form() or True) if key==Gdk.KEY_n and state&Gdk.ModifierType.CONTROL_MASK else False);self.add_controller(shortcuts)
  def migrate(self):
   if self.path.exists():return
@@ -128,25 +133,28 @@ class Todo(Window):
   created=datetime.now().isoformat(timespec="seconds")
   self.path.write_text(json.dumps([{"id":str(uuid.uuid4()),"title":x,"created_at":created,"due_date":None,"priority":"medium"} for x in old],ensure_ascii=False,indent=2))
  def tasks(self):
-  try:return json.loads(self.path.read_text())
+  try:tasks=json.loads(self.path.read_text())
   except (json.JSONDecodeError,OSError):return []
+  for index,task in enumerate(tasks):task.setdefault("status","open");task.setdefault("order",index);task.setdefault("description","");task.setdefault("closed_at",None);task.setdefault("cancel_reason","")
+  return tasks
  def save(self,tasks):
   temp=self.path.with_suffix(".tmp");temp.write_text(json.dumps(tasks,ensure_ascii=False,indent=2));temp.replace(self.path);subprocess.run(["pkill","-RTMIN+8","waybar"],capture_output=True);self.reload()
- @staticmethod
- def order(task):
-  due=task.get("due_date") or "9999-12-31";overdue=bool(task.get("due_date") and task["due_date"]<date.today().isoformat());rank={"high":0,"medium":1,"low":2}.get(task.get("priority"),1)
-  return (not overdue,due,rank,task.get("created_at",""))
+ def change_view(self,status):self.view_status=status;self.reload()
  def reload(self):
   while child:=self.list.get_first_child():self.list.remove(child)
-  tasks=sorted(self.tasks(),key=self.order);overdue=sum(bool(x.get("due_date") and x["due_date"]<date.today().isoformat()) for x in tasks);n=len(tasks)
-  summary=f"{n} tarefa{'s' if n!=1 else ''} pendente{'s' if n!=1 else ''}"+(f" · {overdue} vencida{'s' if overdue!=1 else ''}" if overdue else "");self.counter.set_text(summary)
-  if not tasks:self.list.append(Gtk.Label(label="Tudo em dia!\nCrie uma tarefa para começar.",justify=Gtk.Justification.CENTER,margin_top=80,css_classes=["subtitle"]))
+  all_tasks=self.tasks();open_count=sum(x["status"]=="open" for x in all_tasks);closed_count=len(all_tasks)-open_count;self.open_tab.set_label(f"●  Open  {open_count}");self.closed_tab.set_label(f"✓  Closed  {closed_count}")
+  tasks=sorted((x for x in all_tasks if (x["status"]=="open")== (self.view_status=="open")),key=lambda x:x.get("order",0) if self.view_status=="open" else x.get("closed_at","") ,reverse=self.view_status=="closed")
+  overdue=sum(bool(x.get("due_date") and x["due_date"]<date.today().isoformat()) for x in tasks if x["status"]=="open");n=len(tasks);self.counter.set_text((f"{n} aberta{'s' if n!=1 else ''}"+(f" · {overdue} vencida{'s' if overdue!=1 else ''}" if overdue else "")) if self.view_status=="open" else f"{n} fechada{'s' if n!=1 else ''}")
+  if not tasks:self.empty.set_label("Tudo em dia!\nCrie uma tarefa para começar." if self.view_status=="open" else "Nenhuma tarefa fechada.");self.content_stack.set_visible_child_name("empty");return
+  self.content_stack.set_visible_child_name("list")
   for task in tasks:self.list.append(self.task_row(task))
  def task_row(self,task):
-  row=Gtk.Box(spacing=10,css_classes=["row"]);done=Gtk.CheckButton(tooltip_text="Marcar como concluída");done.connect("toggled",lambda *_:self.remove(task["id"]));row.append(done)
+  row=Gtk.ListBoxRow(activatable=True);content=Gtk.Box(spacing=10,css_classes=["row"])
+  if task["status"]=="open":content.append(Gtk.Label(label="⋮⋮",tooltip_text="Arraste para reordenar",css_classes=["drag-handle"]))
+  else:content.append(Gtk.Label(label="✓" if task["status"]=="completed" else "●",css_classes=["status-completed" if task["status"]=="completed" else "status-cancelled"]))
   body=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=3,hexpand=True);top=Gtk.Box(spacing=7);top.append(Gtk.Label(label=task["title"],xalign=0,hexpand=True,wrap=True,css_classes=["task-title"]));priority=task.get("priority","medium");label={"high":"Alta","medium":"Média","low":"Baixa"}[priority];top.append(Gtk.Label(label=label,css_classes=["badge",f"priority-{priority}"]));body.append(top)
   description=task.get("description","").strip()
-  if description:body.append(Gtk.Label(label=description,xalign=0,wrap=True,max_width_chars=42,lines=2,css_classes=["muted"]))
+  if description:body.append(Gtk.Label(label=description,xalign=0,wrap=False,ellipsize=3,max_width_chars=48,css_classes=["muted"]))
   created=datetime.fromisoformat(task["created_at"]).strftime("Criada em %d/%m/%Y") if task.get("created_at") else "Data de criação desconhecida";due=task.get("due_date")
   if due:
    due_date=date.fromisoformat(due);delta=(due_date-date.today()).days
@@ -156,13 +164,39 @@ class Todo(Window):
    else:deadline=f"Prazo: {due_date.strftime('%d/%m/%Y')}";css="muted"
    meta=Gtk.Box(spacing=8);meta.append(Gtk.Label(label=created,xalign=0,css_classes=["muted"]));meta.append(Gtk.Label(label="•"));meta.append(Gtk.Label(label=deadline,xalign=0,css_classes=[css]));body.append(meta)
   else:body.append(Gtk.Label(label=f"{created}  •  Sem prazo",xalign=0,css_classes=["muted"]))
-  row.append(body);row.append(icon_button("document-edit-symbolic","Editar",lambda *_:self.task_form(task)));row.append(icon_button("user-trash-symbolic","Excluir",lambda *_:self.confirm_delete(task)));return row
- def remove(self,task_id):self.save([x for x in self.tasks() if x["id"]!=task_id])
- def confirm_delete(self,task):
-  dialog=Adw.AlertDialog(heading="Excluir tarefa?",body=task["title"]);dialog.add_response("cancel","Cancelar");dialog.add_response("delete","Excluir");dialog.set_response_appearance("delete",Adw.ResponseAppearance.DESTRUCTIVE);dialog.set_close_response("cancel");dialog.connect("response",lambda _d,r:self.remove(task["id"]) if r=="delete" else None);dialog.present(self)
+  if task["status"]!="open":body.append(Gtk.Label(label="Concluída" if task["status"]=="completed" else "Cancelada",xalign=0,css_classes=["status-completed" if task["status"]=="completed" else "status-cancelled"]))
+  content.append(body);row.set_child(content);row.connect("activate",lambda *_:self.task_details(task))
+  if task["status"]=="open":
+   source=Gtk.DragSource(actions=Gdk.DragAction.MOVE);source.connect("prepare",lambda *_:Gdk.ContentProvider.new_for_value(task["id"]));row.add_controller(source)
+   target=Gtk.DropTarget.new(str,Gdk.DragAction.MOVE);target.connect("drop",lambda _t,value,_x,_y:self.reorder(value,task["id"]));row.add_controller(target)
+  return row
+ def set_status(self,task_id,status,reason=""):
+  tasks=self.tasks()
+  for task in tasks:
+   if task["id"]==task_id:task.update(status=status,closed_at=datetime.now().isoformat(timespec="seconds"),cancel_reason=reason)
+  self.save(tasks)
+ def reorder(self,source_id,target_id):
+  if source_id==target_id:return False
+  tasks=self.tasks();opened=sorted([x for x in tasks if x["status"]=="open"],key=lambda x:x["order"]);source=next((x for x in opened if x["id"]==source_id),None);target=next((x for x in opened if x["id"]==target_id),None)
+  if not source or not target:return False
+  opened.remove(source);opened.insert(opened.index(target),source)
+  for index,task in enumerate(opened):task["order"]=index
+  self.save(tasks);return True
+ def cancel_task(self,task):
+  dialog=Adw.AlertDialog(heading="Cancelar tarefa?",body="Você pode registrar uma justificativa ou deixar em branco.");reason=Gtk.Entry(placeholder_text="Justificativa (opcional)",margin_top=8,margin_bottom=8,margin_start=8,margin_end=8);dialog.set_extra_child(reason);dialog.add_response("back","Voltar");dialog.add_response("cancel","Cancelar tarefa");dialog.set_response_appearance("cancel",Adw.ResponseAppearance.DESTRUCTIVE);dialog.set_close_response("back");dialog.connect("response",lambda _d,r:self.set_status(task["id"],"cancelled",reason.get_text().strip()) if r=="cancel" else None);dialog.present(self)
+ def task_details(self,task):
+  dialog=Adw.AlertDialog(heading=task["title"]);details=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10,width_request=500,margin_top=8,margin_bottom=8,margin_start=8,margin_end=8)
+  if task.get("description"):details.append(Gtk.Label(label=task["description"],xalign=0,wrap=True,selectable=True))
+  priority_label={"low":"Baixa","medium":"Média","high":"Alta"}.get(task.get("priority"),"Baixa");created_label=datetime.fromisoformat(task["created_at"]).strftime("%d/%m/%Y");details.append(Gtk.Label(label=f"Prioridade: {priority_label}  •  Criada em {created_label}",xalign=0,css_classes=["muted"]));dialog.set_extra_child(details);dialog.add_response("close","Fechar");dialog.set_close_response("close")
+  if task["status"]=="open":dialog.add_response("edit","Editar");dialog.add_response("complete","Concluir");dialog.add_response("cancel-task","Cancelar tarefa");dialog.set_response_appearance("complete",Adw.ResponseAppearance.SUGGESTED);dialog.set_response_appearance("cancel-task",Adw.ResponseAppearance.DESTRUCTIVE)
+  def response(_d,action):
+   if action=="edit":self.task_form(task)
+   elif action=="complete":self.set_status(task["id"],"completed")
+   elif action=="cancel-task":self.cancel_task(task)
+  dialog.connect("response",response);dialog.present(self)
  def task_form(self,task=None):
   editing=task is not None;dialog=Adw.AlertDialog(heading="Editar tarefa" if editing else "Nova tarefa",body="Defina o que importa e quando precisa estar pronto.")
-  form=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10,margin_top=10,margin_bottom=6,margin_start=6,margin_end=6)
+  form=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10,width_request=520,margin_top=10,margin_bottom=6,margin_start=6,margin_end=6)
   title=Gtk.Entry(placeholder_text="Título da tarefa",text=task["title"] if editing else "",activates_default=True);form.append(title)
   form.append(Gtk.Label(label="Descrição (opcional)",xalign=0,css_classes=["panel-primary"]))
   description=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,height_request=72,css_classes=["description-box"]);description.get_buffer().set_text(task.get("description","") if editing else "");form.append(description)
@@ -179,7 +213,7 @@ class Todo(Window):
    if editing:
     for current in tasks:
      if current["id"]==task["id"]:current.update(title=value,description=details,priority=self.PRIORITY_KEYS[priority.get_selected()],due_date=due)
-   else:tasks.append({"id":str(uuid.uuid4()),"title":value,"description":details,"created_at":datetime.now().isoformat(timespec="seconds"),"due_date":due,"priority":self.PRIORITY_KEYS[priority.get_selected()]})
+   else:tasks.append({"id":str(uuid.uuid4()),"title":value,"description":details,"created_at":datetime.now().isoformat(timespec="seconds"),"due_date":due,"priority":self.PRIORITY_KEYS[priority.get_selected()],"status":"open","order":sum(x.get("status","open")=="open" for x in tasks),"closed_at":None,"cancel_reason":""})
    self.save(tasks)
   dialog.connect("response",response);dialog.present(self);GLib.idle_add(lambda:(title.grab_focus(),False)[1])
 

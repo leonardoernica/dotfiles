@@ -5,7 +5,7 @@ tasks_file="$state_dir/tasks.json"
 legacy_file="$state_dir/todo.txt"
 
 if [[ -f "$tasks_file" ]]; then
-    jq 'length' "$tasks_file" 2>/dev/null || echo 0
+    jq '[.[] | select((.status // "open") == "open")] | length' "$tasks_file" 2>/dev/null || echo 0
 elif [[ -f "$legacy_file" ]]; then
     awk 'NF { count++ } END { print count + 0 }' "$legacy_file"
 else

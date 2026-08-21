@@ -5,7 +5,7 @@ A premium, modern Waybar configuration designed for Arch Linux + Hyprland, featu
 ## Features
 
 - **Modern Design**: Rounded "pill" modules, blur effects, and neon accents (Catppuccin Mocha inspired colors).
-- **Productivity**: Native dark GTK task manager with optional descriptions, priorities, creation dates, deadlines and overdue states, plus a Rofi application launcher.
+- **Productivity**: Native dark GTK task manager with Open/Closed views, completion and cancellation states, optional descriptions, priorities, deadlines, overdue states and drag-to-reorder, plus a Rofi application launcher.
 - **Connectivity**: Native GTK Wi-Fi panel with connection, password and radio controls.
 - **Hardware Monitoring**: CPU, RAM, Battery, and Network stats.
 - **Hyprland Integration**: Workspaces with persistent indicators and window titles.
