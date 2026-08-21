@@ -31,10 +31,11 @@ button { border-radius: 9px; }
 entry, textview { background: #242833; color: #f5f7fa; caret-color: #f5f7fa; }
 .description-box { background: #242833; border: 1px solid rgba(255,255,255,.10); border-radius: 10px; padding: 8px; }
 .tabs { background: transparent; padding: 0; }
-.action-button { min-height: 30px; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
-.action-complete { background: rgba(34,197,94,.10); color: #4ade80; border: 1px solid rgba(74,222,128,.30); }
-.action-cancel { background: rgba(245,158,11,.10); color: #fbbf24; border: 1px solid rgba(251,191,36,.30); }
-.action-delete { background: rgba(244,63,94,.10); color: #fb7185; border: 1px solid rgba(251,113,133,.30); }
+.action-button { min-width: 26px; min-height: 26px; border-radius: 7px; padding: 4px; font-size: 16px; font-weight: 800; background: transparent; border: none; box-shadow: none; }
+.action-button:hover { background: rgba(255,255,255,.07); }
+.action-complete { color: #4ade80; }
+.action-cancel { color: #fb7185; }
+.action-delete { color: #9ca3af; }
 .status-completed { color: #4ade80; font-weight: 700; }
 .status-cancelled { color: #fb7185; font-weight: 700; }
 .drag-handle { color: #6b7280; font-size: 18px; margin-right: 8px; }
@@ -52,6 +53,8 @@ def icon_button(icon,tip,callback):
  b=Gtk.Button(icon_name=icon,tooltip_text=tip); b.add_css_class("flat"); b.connect("clicked",callback); return b
 def action_button(label,tip,css,callback):
  b=Gtk.Button(label=label,tooltip_text=tip,css_classes=["action-button",css]);b.connect("clicked",callback);return b
+def action_icon_button(icon,tip,css,callback):
+ b=Gtk.Button(icon_name=icon,tooltip_text=tip,css_classes=["action-button",css]);b.connect("clicked",callback);return b
 
 class Window(Adw.ApplicationWindow):
  def __init__(self,app,title):
@@ -178,9 +181,10 @@ class Todo(Window):
    closed=datetime.fromisoformat(task["closed_at"]).strftime("%d/%m/%Y às %H:%M") if task.get("closed_at") else "data desconhecida";status_text=(f"Concluída em {closed}" if task["status"]=="completed" else f"Cancelada em {closed}");body.append(Gtk.Label(label=status_text,xalign=0,css_classes=["status-completed" if task["status"]=="completed" else "status-cancelled"]))
   content.append(body);body.set_cursor_from_name("pointer");click=Gtk.GestureClick();click.connect("released",lambda *_:self.task_details(task));body.add_controller(click)
   if task["status"]=="open":
-   actions=Gtk.Box(spacing=6);actions.append(action_button("✓ Concluir","Concluir","action-complete",lambda *_:self.set_status(task["id"],"completed")));actions.append(action_button("⊘ Cancelar","Cancelar","action-cancel",lambda *_:self.cancel_task(task)));actions.append(action_button("× Excluir","Excluir","action-delete",lambda *_:self.confirm_delete(task)));content.append(actions)
+   actions=Gtk.Box(spacing=8);actions.append(action_button("✓","Concluir","action-complete",lambda *_:self.set_status(task["id"],"completed")));actions.append(action_button("×","Cancelar","action-cancel",lambda *_:self.cancel_task(task)));actions.append(action_icon_button("user-trash-symbolic","Excluir","action-delete",lambda *_:self.confirm_delete(task)));content.append(actions)
    source=Gtk.DragSource(actions=Gdk.DragAction.MOVE);source.connect("prepare",lambda *_:Gdk.ContentProvider.new_for_value(task["id"]));handle.add_controller(source)
    target=Gtk.DropTarget.new(str,Gdk.DragAction.MOVE);target.connect("drop",lambda _t,value,_x,_y:self.reorder(value,task["id"]));row.add_controller(target)
+  else:content.append(action_icon_button("user-trash-symbolic","Excluir","action-delete",lambda *_:self.confirm_delete(task)))
   row.set_child(content);return row
  def set_status(self,task_id,status,reason=""):
   tasks=self.tasks()
