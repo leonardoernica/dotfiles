@@ -29,7 +29,10 @@ sudo pacman -S --needed \
   grim slurp wl-clipboard dolphin chromium polkit-kde-agent
 ```
 
-A central de Wi-Fi usa `nmcli`, fornecido por `networkmanager`. Wi-Fi e tarefas
+A central de Wi-Fi usa `nmcli` e libnm, fornecidos por `networkmanager`,
+cria perfis pessoais sem pedir administrador e inicia `nm-applet` para solicitar
+segredos de conexão. Veja [diagnóstico e correção do Realtek](network/README.md).
+Wi-Fi e tarefas
 usam GTK 4, libadwaita e PyGObject. Instale `wlogout` pelo AUR.
 
 ## Instalação

@@ -3,6 +3,8 @@
 import json, os, re, subprocess, sys, threading, uuid
 from datetime import date, datetime
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import wifi_backend
 import gi
 gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
@@ -66,35 +68,38 @@ class Window(Adw.ApplicationWindow):
 
 class Wifi(Window):
  def __init__(self,app):
-  super().__init__(app,"Wi-Fi"); self.changing=False
+  super().__init__(app,"Wi-Fi"); self.changing=False; self.busy=False; self.scanning=False
   hero=Gtk.Box(spacing=12,css_classes=["card","hero"]); labels=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,hexpand=True)
-  labels.append(Gtk.Label(label="Conexão sem fio",xalign=0,css_classes=["panel-primary"])); self.status=Gtk.Label(label="Carregando…",xalign=0,css_classes=["subtitle"]); labels.append(self.status); hero.append(labels)
+  labels.append(Gtk.Label(label="Conexão sem fio",xalign=0,css_classes=["panel-primary"])); self.status=Gtk.Label(label="Carregando…",xalign=0,wrap=True,css_classes=["subtitle"]); labels.append(self.status); hero.append(labels)
   self.toggle=Gtk.Switch(valign=Gtk.Align.CENTER); self.toggle.connect("state-set",self.toggle_wifi); hero.append(self.toggle); self.box.append(hero)
   heading=Gtk.Box(spacing=8); heading.append(Gtk.Label(label="Redes disponíveis",xalign=0,hexpand=True,css_classes=["panel-primary"])); self.spin=Gtk.Spinner(); heading.append(self.spin); heading.append(icon_button("view-refresh-symbolic","Atualizar",lambda *_:self.refresh(True))); self.box.append(heading)
   self.list=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,css_classes=["card"]); self.box.append(Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,child=self.list))
-  advanced=Gtk.Button(label="Configurações avançadas",css_classes=["pill"]); advanced.connect("clicked",lambda *_:subprocess.Popen(["nm-connection-editor"])); self.box.append(advanced); self.refresh()
+  advanced=Gtk.Button(label="Configurações avançadas",css_classes=["pill"]); advanced.connect("clicked",lambda *_:subprocess.Popen(["nm-connection-editor"])); self.box.append(advanced); self.refresh(); self.timer=GLib.timeout_add_seconds(15,self.poll); self.connect("close-request",self.closed)
+ def closed(self,*_):
+  if self.timer:GLib.source_remove(self.timer);self.timer=None
+  return False
+ def poll(self):
+  if not self.busy and not self.scanning:self.refresh()
+  return True
+ def set_busy(self,busy):
+  self.busy=busy;self.list.set_sensitive(not busy);self.toggle.set_sensitive(not busy)
  def toggle_wifi(self,_switch,state):
   if self.changing:return False
-  background(lambda:run("nmcli","radio","wifi","on" if state else "off"),lambda *_:self.refresh()); return False
- def refresh(self,force=False): self.spin.start(); self.status.set_text("Procurando redes…"); background(lambda:self.scan(force),self.show)
- @staticmethod
- def scan(force=False):
-  radio=run("nmcli","radio","wifi");enabled=radio.stdout.strip()=="enabled"
-  if not enabled:return enabled,[]
-  result=run("nmcli","-t","--escape","yes","-f","IN-USE,SSID,SIGNAL,SECURITY","device","wifi","list","--rescan","yes" if force else "no")
-  if result.returncode:raise RuntimeError(result.stderr.strip() or "Falha ao consultar redes")
-  output=result.stdout
-  found=[]; seen=set()
-  for line in output.splitlines():
-   safe=line.replace(r"\\","__BS__").replace(r"\:","__COLON__"); parts=safe.split(":",3)
-   if len(parts)!=4:continue
-   active,ssid,signal,security=parts; ssid=ssid.replace("__COLON__",":").replace("__BS__","\\")
-   if not ssid or ssid in seen:continue
-   seen.add(ssid); found.append(dict(ssid=ssid,signal=int(signal or 0),security=security,active=active=="*"))
-  return enabled,sorted(found,key=lambda n:n["signal"],reverse=True)
+  if self.busy:return True
+  self.set_busy(True)
+  background(lambda:wifi_backend.command("radio","wifi","on" if state else "off"),self.operation_done); return False
+ def refresh(self,force=False):
+  if self.busy or self.scanning:return
+  self.scanning=True; self.spin.start(); self.status.set_text("Procurando redes…"); background(lambda:wifi_backend.scan(force),self.show)
+ def operation_done(self,result,error):
+  self.set_busy(False)
+  if error:self.show_error(error)
+  self.refresh();return False
+ def show_error(self,error):
+  dialog=Adw.AlertDialog(heading="Não foi possível conectar",body=wifi_backend.error_message(error));dialog.add_response("close","Fechar");dialog.set_close_response("close");dialog.present(self)
  def show(self,result,error):
-  self.spin.stop()
-  if error:self.status.set_text("NetworkManager indisponível");return False
+  self.scanning=False;self.spin.stop()
+  if error:self.status.set_text(wifi_backend.error_message(error));return False
   enabled,networks=result; self.changing=True; self.toggle.set_active(enabled); self.changing=False
   while child:=self.list.get_first_child():self.list.remove(child)
   if not enabled:self.status.set_text("Wi-Fi desligado");return False
@@ -108,22 +113,36 @@ class Wifi(Window):
    content.set_cursor_from_name("pointer");click=Gtk.GestureClick();click.connect("released",lambda _gesture,_press,_x,_y,network=net:self.select(None,network));content.add_controller(click);row.set_child(content);self.list.append(row)
   return False
  def select(self,_row,net):
-  if net["active"]:background(lambda:run("nmcli","connection","down","id",net["ssid"]),lambda *_:self.refresh());return
-  def saved_done(result,_error):
-   if result.returncode==0:self.refresh();return False
-   if net["security"] in ("","--"):self.connect_network(net,None);return False
-   dialog=Adw.AlertDialog(heading=f'Conectar a “{net["ssid"]}”',body="Digite a senha da rede.");content=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,width_request=430,margin_top=10,margin_bottom=8,margin_start=8,margin_end=8);password=Gtk.PasswordEntry(show_peek_icon=True,activates_default=True,placeholder_text="Senha");content.append(password);dialog.set_extra_child(content);dialog.add_response("cancel","Cancelar");dialog.add_response("connect","Conectar");dialog.set_response_appearance("connect",Adw.ResponseAppearance.SUGGESTED);dialog.set_default_response("connect");dialog.set_close_response("cancel");dialog.connect("response",lambda _d,r:self.connect_network(net,password.get_text()) if r=="connect" else None);dialog.present(self);GLib.idle_add(lambda:(password.grab_focus(),False)[1]);return False
-  background(lambda:run("nmcli","connection","up","id",net["ssid"]),saved_done)
- def connect_network(self,net,password):
-  self.status.set_text(f'Conectando a {net["ssid"]}…')
+  if self.busy or self.scanning:return
+  if net["active"]:
+   self.set_busy(True);background(lambda:wifi_backend.disconnect(net),self.operation_done);return
+  if any(kind in net["security"] for kind in ("802.1X","EAP","WEP")):
+   self.toast("Use as configurações avançadas para esta rede.");subprocess.Popen(["nm-connection-editor"]);return
+  self.set_busy(True);self.status.set_text(f'Conectando a {net["ssid"]}…')
   def work():
-   args=["nmcli","device","wifi","connect",net["ssid"]]
-   if password:args += ["password",password]
-   return run(*args)
-  def done(result,error):
-   if error or result.returncode:self.toast("Não foi possível conectar. Confira a senha.")
-   self.refresh()
-  background(work,done)
+   connection_uuid=wifi_backend.saved_uuid(net)
+   if connection_uuid:wifi_backend.activate(net,connection_uuid);return True
+   return False
+  def saved_done(result,error):
+   self.set_busy(False)
+   if result:self.refresh();return False
+   if net["security"] in ("","--") or "OWE" in net["security"]:
+    if error:self.show_error(error);self.refresh()
+    else:self.connect_network(net,None)
+    return False
+   self.ask_password(net,wifi_backend.error_message(error) if error else "Digite a senha da rede.");return False
+  background(work,saved_done)
+ def ask_password(self,net,message):
+  self.set_busy(True)
+  dialog=Adw.AlertDialog(heading=f'Conectar a “{net["ssid"]}”',body=message);content=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,width_request=430,margin_top=10,margin_bottom=8,margin_start=8,margin_end=8);password=Gtk.PasswordEntry(show_peek_icon=True,activates_default=True,placeholder_text="Senha");content.append(password);dialog.set_extra_child(content);dialog.add_response("cancel","Cancelar");dialog.add_response("connect","Conectar");dialog.set_response_appearance("connect",Adw.ResponseAppearance.SUGGESTED);dialog.set_default_response("connect");dialog.set_close_response("cancel")
+  def response(_dialog,choice):
+   secret=password.get_text();password.set_text("");self.set_busy(False)
+   if choice=="connect":self.connect_network(net,secret)
+   else:self.refresh()
+  dialog.connect("response",response);dialog.present(self);GLib.idle_add(lambda:(password.grab_focus(),False)[1])
+ def connect_network(self,net,password):
+  self.set_busy(True);self.status.set_text(f'Conectando a {net["ssid"]}…')
+  background(lambda:wifi_backend.connect(net,password),self.operation_done)
 
 class Todo(Window):
  PRIORITIES=("Baixa","Média","Alta")

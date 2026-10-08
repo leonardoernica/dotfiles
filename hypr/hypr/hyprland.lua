@@ -35,6 +35,8 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("waybar")
     hl.exec_cmd("hyprpaper")
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
+    -- Provide Wi-Fi secrets to NetworkManager and tools such as nmtui.
+    hl.exec_cmd("nm-applet --indicator")
     -- Export the complete session environment before apps request portals.
     -- xdg-desktop-portal and XDPH are activated automatically through D-Bus.
     hl.exec_cmd("dbus-update-activation-environment --systemd --all")
