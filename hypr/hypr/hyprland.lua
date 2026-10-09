@@ -7,6 +7,11 @@ hl.env("TERMINAL", terminal)
 hl.env("NIXOS_OZONE_WL", "1")
 
 hl.config({
+    general = { layout = "dwindle" },
+    dwindle = {
+        force_split = 2,
+        preserve_split = true,
+    },
     input = {
         kb_layout = "br", kb_model = "abnt2", follow_mouse = 1, sensitivity = 0,
         touchpad = {
@@ -45,7 +50,6 @@ hl.on("hyprland.start", function()
     hl.exec_cmd(chatgpt, { workspace = "3 silent" })
 end)
 
-hl.window_rule({ name = "kitty-workspace", match = { class = "^kitty$" }, workspace = "1" })
 hl.window_rule({ name = "chromium-workspace", match = { class = "^chromium$" }, workspace = "2" })
 hl.window_rule({ name = "chatgpt-workspace", match = { class = "^Chatgpt$" }, workspace = "3" })
 hl.layer_rule({
