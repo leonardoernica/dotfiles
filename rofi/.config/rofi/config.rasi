@@ -1,35 +1,33 @@
 configuration {
-    font: "Noto Sans 12";
+    font: "Noto Sans 13";
     show-icons: true;
     matching: "fuzzy";
     sorting-method: "fzf";
     sort: true;
     case-smart: true;
-    display-drun: "Apps";
-    drun-display-format: "{name} [<span alpha='58%' size='small'>· {generic}</span>]";
+    drun-display-format: "{name}";
     drun-match-fields: "name,generic,exec,categories,keywords";
 }
 
 * {
-    bg: rgba(17, 19, 24, 88%);
-    row: rgba(255, 255, 255, 4%);
-    outline: rgba(255, 255, 255, 10%);
-    text: #eef1f6;
-    muted: #9aa3b2;
-    accent: #70d7e8;
-    selected: rgba(112, 215, 232, 14%);
+    panel: rgba(24, 25, 28, 96%);
+    outline: rgba(255, 255, 255, 8%);
+    text: #f3f4f6;
+    muted: #a1a1aa;
+    accent: #a8c7fa;
+    selected: #303237;
 }
 
 window {
-    width: 40%;
+    width: 36%;
     location: center;
     anchor: center;
-    y-offset: -36px;
     transparency: "real";
+    padding: 8px;
     border: 1px;
     border-color: @outline;
-    border-radius: 18px;
-    background-color: @bg;
+    border-radius: 20px;
+    background-color: @panel;
 }
 
 mainbox {
@@ -38,75 +36,74 @@ mainbox {
 }
 
 inputbar {
-    padding: 10px 12px 14px;
-    spacing: 12px;
+    children: [ "entry" ];
+    padding: 13px 14px;
     border: 0px 0px 1px;
     border-color: @outline;
     background-color: transparent;
 }
 
-prompt {
-    text-color: @accent;
-    background-color: transparent;
-}
-
-textbox-prompt-colon {
-    enabled: false;
-}
-
 entry {
-    placeholder: "Buscar apps e abrir";
+    placeholder: "Buscar aplicativos";
     placeholder-color: @muted;
     text-color: @text;
     cursor: text;
     background-color: transparent;
 }
 
-num-filtered-rows,
-textbox-num-sep,
-num-rows {
-    text-color: @muted;
-    background-color: transparent;
-}
-
 listview {
-    lines: 8;
+    lines: 6;
     columns: 1;
     fixed-height: false;
     dynamic: true;
     scrollbar: false;
-    spacing: 4px;
-    padding: 12px 0px 2px;
+    spacing: 2px;
+    padding: 10px 0px 0px;
+    border: 0px;
+    border-color: transparent;
+}
+
+message,
+sidebar {
+    border: 0px;
+    border-color: transparent;
+    background-color: transparent;
 }
 
 element {
     padding: 9px 12px;
     spacing: 12px;
-    border: 0px 0px 0px 2px;
-    border-color: transparent;
-    border-radius: 9px;
+    border-radius: 10px;
+    border: 0px;
     background-color: transparent;
     text-color: @text;
 }
 
-element alternate.normal {
-    background-color: @row;
+element normal.normal,
+element alternate.normal,
+element normal.active,
+element alternate.active,
+element normal.urgent,
+element alternate.urgent {
+    background-color: transparent;
+    text-color: @text;
 }
 
-element selected.normal {
-    border-color: @accent;
+element selected.normal,
+element selected.active,
+element selected.urgent {
     background-color: @selected;
     text-color: @text;
 }
 
 element-icon {
-    size: 1.25em;
+    size: 1.15em;
     background-color: transparent;
 }
 
 element-text {
     vertical-align: 0.5;
-    highlight: bold #70d7e8;
+    highlight: bold #a8c7fa;
     background-color: transparent;
 }
 
