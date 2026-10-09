@@ -56,6 +56,10 @@ hl.layer_rule({
     name = "blur-logout", match = { namespace = "^(wlogout|logout_dialog)$" },
     blur = true, ignore_alpha = 0,
 })
+hl.layer_rule({
+    name = "launcher-glass", match = { namespace = "^rofi$" },
+    blur = true, ignore_alpha = 0.25, dim_around = true,
+})
 
 hl.bind(main_mod .. " + RETURN", hl.dsp.exec_cmd(terminal))
 hl.bind(main_mod .. " + Q", hl.dsp.window.close())

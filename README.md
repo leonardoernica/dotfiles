@@ -12,7 +12,7 @@ Wlogout e SDDM. O Hyprland usa Lua como formato principal; o arquivo `.conf`
 - `waybar/waybar`: barra, central de Wi-Fi e gerenciador de tarefas
 - `wlogout/wlogout`: menu de sessão e bloqueio
 - `kitty/kitty`: terminal Kitty
-- `rofi/.config/rofi`: tema compacto e pesquisa fuzzy do launcher
+- `rofi/.config/rofi`: command palette translúcida com busca fuzzy
 - `applications/.local/share/applications`: ajustes locais do menu de aplicativos
 - `zsh/.zshrc` e `starship/.config/starship`: shell e prompt
 - `gtk-3.0` e `gtk-4.0`: aparência GTK

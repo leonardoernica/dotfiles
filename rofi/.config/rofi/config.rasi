@@ -1,43 +1,45 @@
 configuration {
-    font: "Noto Sans 11";
+    font: "Noto Sans 12";
     show-icons: true;
     matching: "fuzzy";
     sorting-method: "fzf";
     sort: true;
     case-smart: true;
-    display-drun: "Aplicativos";
-    drun-display-format: "{name}";
+    display-drun: "Apps";
+    drun-display-format: "{name} [<span alpha='58%' size='small'>· {generic}</span>]";
     drun-match-fields: "name,generic,exec,categories,keywords";
 }
 
 * {
-    bg: #111318;
-    surface: #191c23;
-    outline: #2d323d;
-    text: #e6e9ef;
-    muted: #929aaa;
-    accent: #9bb5ff;
-    selected: #252c3a;
+    bg: rgba(17, 19, 24, 88%);
+    row: rgba(255, 255, 255, 4%);
+    outline: rgba(255, 255, 255, 10%);
+    text: #eef1f6;
+    muted: #9aa3b2;
+    accent: #70d7e8;
+    selected: rgba(112, 215, 232, 14%);
 }
 
 window {
-    width: 42%;
+    width: 40%;
     location: center;
     anchor: center;
+    y-offset: -36px;
+    transparency: "real";
     border: 1px;
     border-color: @outline;
-    border-radius: 14px;
+    border-radius: 18px;
     background-color: @bg;
 }
 
 mainbox {
-    padding: 12px;
-    background-color: @bg;
+    padding: 14px;
+    background-color: transparent;
 }
 
 inputbar {
-    padding: 8px 10px 12px;
-    spacing: 10px;
+    padding: 10px 12px 14px;
+    spacing: 12px;
     border: 0px 0px 1px;
     border-color: @outline;
     background-color: transparent;
@@ -53,7 +55,7 @@ textbox-prompt-colon {
 }
 
 entry {
-    placeholder: "Buscar aplicativos";
+    placeholder: "Buscar apps e abrir";
     placeholder-color: @muted;
     text-color: @text;
     cursor: text;
@@ -68,41 +70,43 @@ num-rows {
 }
 
 listview {
-    lines: 10;
+    lines: 8;
     columns: 1;
     fixed-height: false;
     dynamic: true;
     scrollbar: false;
-    spacing: 3px;
-    padding: 10px 0px 0px;
+    spacing: 4px;
+    padding: 12px 0px 2px;
 }
 
 element {
-    padding: 8px 10px;
-    spacing: 10px;
-    border-radius: 8px;
+    padding: 9px 12px;
+    spacing: 12px;
+    border: 0px 0px 0px 2px;
+    border-color: transparent;
+    border-radius: 9px;
     background-color: transparent;
     text-color: @text;
 }
 
+element alternate.normal {
+    background-color: @row;
+}
+
 element selected.normal {
+    border-color: @accent;
     background-color: @selected;
     text-color: @text;
 }
 
-element alternate.normal {
-    background-color: @surface;
-    text-color: @text;
-}
-
 element-icon {
-    size: 1.2em;
+    size: 1.25em;
     background-color: transparent;
 }
 
 element-text {
     vertical-align: 0.5;
-    highlight: bold #9bb5ff;
+    highlight: bold #70d7e8;
     background-color: transparent;
 }
 
