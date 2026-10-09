@@ -102,7 +102,7 @@ element-icon {
 
 element-text {
     vertical-align: 0.5;
-    highlight: bold @accent;
+    highlight: bold #9bb5ff;
     background-color: transparent;
 }
 
