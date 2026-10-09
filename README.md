@@ -12,6 +12,8 @@ Wlogout e SDDM. O Hyprland usa Lua como formato principal; o arquivo `.conf`
 - `waybar/waybar`: barra, central de Wi-Fi e gerenciador de tarefas
 - `wlogout/wlogout`: menu de sessão e bloqueio
 - `kitty/kitty`: terminal Kitty
+- `rofi/.config/rofi`: tema compacto e pesquisa fuzzy do launcher
+- `applications/.local/share/applications`: ajustes locais do menu de aplicativos
 - `zsh/.zshrc` e `starship/.config/starship`: shell e prompt
 - `gtk-3.0` e `gtk-4.0`: aparência GTK
 - `sddm`: configuração e temas do gerenciador de login
@@ -45,8 +47,9 @@ cd ~/projects/dotfiles
 
 O instalador:
 
-- cria links em `~/.config` para Waybar, Wlogout, Kitty e GTK;
+- cria links em `~/.config` para Waybar, Wlogout, Kitty, Rofi e GTK;
 - instala Zsh e Starship com GNU Stow;
+- oculta do menu o atalho Flatpak do Chromium, mantendo o Chromium nativo;
 - ativa `~/.config/hypr/hyprland.lua`;
 - mantém `hyprland.conf` disponível como fallback;
 - remove links quebrados de scripts antigos da Waybar;

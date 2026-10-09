@@ -39,8 +39,8 @@ echo ""
 
 # ── Pacotes com estrutura package/package_name/ → ~/.config/package_name/
 # (usa stow -t ~/.config)
-echo "[~/.config] kitty waybar wlogout gtk-3.0 gtk-4.0"
-for pkg in kitty waybar wlogout gtk-3.0 gtk-4.0; do
+echo "[~/.config] kitty waybar wlogout gtk-3.0 gtk-4.0 rofi"
+for pkg in kitty waybar wlogout gtk-3.0 gtk-4.0 rofi; do
     stow_or_warn "$CONFIG" "$pkg"
 done
 
@@ -59,8 +59,8 @@ done
 # ── Pacotes com estrutura package/.hidden/ → ~/
 # (usa stow -t ~)
 echo ""
-echo "[~] starship zsh"
-for pkg in starship zsh; do
+echo "[~] starship zsh applications"
+for pkg in starship zsh applications; do
     stow_or_warn "$HOME" "$pkg"
 done
 

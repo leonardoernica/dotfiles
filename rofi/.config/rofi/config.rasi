@@ -1,0 +1,111 @@
+configuration {
+    font: "Noto Sans 11";
+    show-icons: true;
+    matching: "fuzzy";
+    sorting-method: "fzf";
+    sort: true;
+    case-smart: true;
+    display-drun: "Aplicativos";
+    drun-display-format: "{name}";
+    drun-match-fields: "name,generic,exec,categories,keywords";
+}
+
+* {
+    bg: #111318;
+    surface: #191c23;
+    outline: #2d323d;
+    text: #e6e9ef;
+    muted: #929aaa;
+    accent: #9bb5ff;
+    selected: #252c3a;
+}
+
+window {
+    width: 42%;
+    location: center;
+    anchor: center;
+    border: 1px;
+    border-color: @outline;
+    border-radius: 14px;
+    background-color: @bg;
+}
+
+mainbox {
+    padding: 12px;
+    background-color: @bg;
+}
+
+inputbar {
+    padding: 8px 10px 12px;
+    spacing: 10px;
+    border: 0px 0px 1px;
+    border-color: @outline;
+    background-color: transparent;
+}
+
+prompt {
+    text-color: @accent;
+    background-color: transparent;
+}
+
+textbox-prompt-colon {
+    enabled: false;
+}
+
+entry {
+    placeholder: "Buscar aplicativos";
+    placeholder-color: @muted;
+    text-color: @text;
+    cursor: text;
+    background-color: transparent;
+}
+
+num-filtered-rows,
+textbox-num-sep,
+num-rows {
+    text-color: @muted;
+    background-color: transparent;
+}
+
+listview {
+    lines: 10;
+    columns: 1;
+    fixed-height: false;
+    dynamic: true;
+    scrollbar: false;
+    spacing: 3px;
+    padding: 10px 0px 0px;
+}
+
+element {
+    padding: 8px 10px;
+    spacing: 10px;
+    border-radius: 8px;
+    background-color: transparent;
+    text-color: @text;
+}
+
+element selected.normal {
+    background-color: @selected;
+    text-color: @text;
+}
+
+element alternate.normal {
+    background-color: @surface;
+    text-color: @text;
+}
+
+element-icon {
+    size: 1.2em;
+    background-color: transparent;
+}
+
+element-text {
+    vertical-align: 0.5;
+    highlight: bold @accent;
+    background-color: transparent;
+}
+
+scrollbar {
+    enabled: false;
+}
