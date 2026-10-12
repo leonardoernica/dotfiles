@@ -88,9 +88,17 @@ class Store:
   self.db.execute("delete from chunks where file_id=?", (file_id,))
 
  def remove(self, path):
+  """Forget a file; True if it was indexed."""
   with self.db:
    row = self.file(path)
    if row: self._delete_chunks(row[0]); self.db.execute("delete from files where id=?", (row[0],))
+  return bool(row)
+
+ def remove_prefix(self, prefix):
+  """Forget every file below a deleted or moved-away folder."""
+  paths = [r[0] for r in self.db.execute("select path from files where substr(path,1,?)=?", (len(prefix), prefix))]
+  for p in paths: self.remove(p)
+  return bool(paths)
 
  def matrix(self, scope, model):
   """Cached (chunk_ids, float32 matrix, modalities) for the scope; rebuilt only when the index changes."""

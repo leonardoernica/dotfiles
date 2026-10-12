@@ -1,5 +1,5 @@
 """Walk the configured folders and keep the index in sync. Read-only: files are never modified."""
-import fnmatch, json, os, re, subprocess, time
+import fnmatch, json, os, re, subprocess, threading, time
 from collections import Counter
 from pathlib import Path
 import config, readers
@@ -34,6 +34,25 @@ def is_project(here, dirs, names):
  entries = set(dirs) | set(names)
  return bool(entries & PROJECT_MARKERS) or {"bin", "lib"} <= entries
 
+def dir_ok(name, path, extra):
+ """Folders never indexed nor watched: hidden, dependencies, caches, secrets, user exclusions."""
+ return not name.startswith(".") and name not in SKIP_DIRS and "cache" not in name.lower() and not sensitive(name, extra) \
+        and not any(fnmatch.fnmatch(str(path), p) for p in extra)
+
+def is_dataset(here, names, roots):
+ return len(names) >= DATASET_SIZE and here not in roots and \
+        max(Counter(Path(n).suffix.lower() for n in names).values()) >= 0.8 * len(names)
+
+def file_kind(path, scope, extra, limited=False, dataset=False):
+ """Kind of an indexable file, or None. Shared by the full walk and the live watcher."""
+ if sensitive(path.name, extra) or any(fnmatch.fnmatch(str(path), p) for p in extra): return None
+ k = readers.kind(path)
+ if scope == "code": return k if k in ("code", "text") else None
+ if k == "code": return None  # source code only lives in the opt-in code index
+ if (limited or dataset) and k not in DOCUMENT_KINDS: return None
+ if k == "other" and path.suffix.lower() not in NAMED_OTHER: return None
+ return k
+
 def walk(cfg):
  """Yield (path, scope, kind) for every indexable file.
 
@@ -50,10 +69,8 @@ def walk(cfg):
      dirs[:] = []; continue
     limited = here.parent in restricted or (scope == "files" and is_project(here, dirs, names))
     if limited: restricted.add(here)
-    dataset = len(names) >= DATASET_SIZE and here not in roots and \
-              max(Counter(Path(n).suffix.lower() for n in names).values()) >= 0.8 * len(names)
-    dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS and "cache" not in d.lower() and not sensitive(d, extra)
-               and not any(fnmatch.fnmatch(str(here / d), p) for p in extra)]
+    dataset = is_dataset(here, names, roots)
+    dirs[:] = [d for d in dirs if dir_ok(d, here / d, extra)]
     from_git = False
     if scope == "code" and (here / ".git").exists():
      listed = git_files(here)
@@ -62,14 +79,10 @@ def walk(cfg):
       names = [str(p.relative_to(here)) for p in listed]
     for name in names:
      path = here / name
-     if path in seen or sensitive(path.name, extra): continue
+     if path in seen: continue
      if any(part.startswith(".") for part in Path(name).parts) and not from_git: continue
-     if any(fnmatch.fnmatch(str(path), p) for p in extra): continue
-     k = readers.kind(path)
-     if scope == "code" and k not in ("code", "text"): continue
-     if scope == "files" and k == "code": continue  # source code only lives in the opt-in code index
-     if scope == "files" and (limited or dataset) and k not in DOCUMENT_KINDS: continue
-     if k == "other" and path.suffix.lower() not in NAMED_OTHER: continue
+     k = file_kind(path, scope, extra, limited, dataset)
+     if k is None: continue
      seen.add(path)
      yield path, scope, k
 
@@ -78,6 +91,58 @@ class Indexer:
   self.cfg, self.store, self.embedder, self.log = cfg, store, embedder, log
   self.langs = readers.ocr_langs() if cfg["ocr"] else None
   self.last_bump = 0.0
+  self.use_vectors = False
+  self.pending, self.pending_lock, self.draining = {}, threading.Lock(), False
+  self.rescan_now = threading.Event()
+
+ # ── live changes (inotify) ──
+ def notify(self, path):
+  """Called from the watcher thread: remember the path; handled once it has been quiet for a moment."""
+  with self.pending_lock: self.pending[str(path)] = time.time()
+
+ def fresh(self, path):
+  """Already indexed in its current version (by the current model when it is available)?"""
+  row = self.store.file(path)
+  try: st = path.stat()
+  except OSError: return False
+  return bool(row) and row[1] == st.st_mtime and row[2] == st.st_size and row[3] != "indexing" \
+         and (row[5] == self.cfg["model"] or not self.use_vectors)
+
+ def drain(self, quiet=1.5):
+  """Index files changed since the watcher saw them — between files and even between batches of a big one."""
+  if self.draining or not self.pending: return
+  from watcher import classify
+  now = time.time()
+  with self.pending_lock:
+   due = [k for k, t in self.pending.items() if now - t >= quiet]  # downloads finish writing first
+   for k in due: del self.pending[k]
+  if not due: return
+  self.draining, changed = True, False
+  try:
+   for key in sorted(due):
+    path = Path(key)
+    if not path.exists():
+     changed |= self.store.remove(key) | self.store.remove_prefix(key + "/")
+     continue
+    if not path.is_file(): continue
+    found = classify(path, self.cfg)
+    if not found: changed |= self.store.remove(key); continue
+    if self.fresh(path): continue
+    self.log(f"[garimpo] alterado: {key}")
+    try: self.process(path, *found, self.use_vectors); changed = True
+    except EmbedError as e:
+     if e.offline: self.notify(path); break  # server restarting: retry later
+     self._mark_error(key)
+    except Exception as e: self.log(f"[garimpo] erro em {key}: {e!r}"); self._mark_error(key)
+  finally:
+   self.draining = False
+  if changed: self._bump(force=True)
+
+ def start_watching(self):
+  try:
+   from watcher import Watcher
+   Watcher(self.cfg, self.notify, self.rescan_now.set, self.log).start()
+  except OSError as e: self.log(f"[garimpo] inotify indisponível ({e}); usando só a varredura periódica")
 
  def status(self, state, **extra):
   self.store.set("status", json.dumps(dict(state=state, at=time.time(), **extra)))
@@ -97,6 +162,7 @@ class Indexer:
    if use_vectors and (limit is None or len(todo) < limit) and not readers.mostly_numeric(text): todo.append((loc, text))
    else: rows.append((loc, text, None, text))
   for i in range(0, len(todo), 16):
+   self.drain()
    batch = todo[i:i + 16]
    vecs = self.embedder.documents([(title, t) for _, t in batch])
    rows += [(loc, text, vec, text) for (loc, text), vec in zip(batch, vecs)]
@@ -139,10 +205,12 @@ class Indexer:
    if (vec := emb.image(jpg)) is not None: rows.append((0, "", vec, None, "i"))
   if k == "video" and cfg["videos"] and cfg["images"]:
    for sec, jpg in readers.video_frames(path, cfg["video_max_frames"]):
+    self.drain()
     if (vec := emb.image(jpg)) is None: break
     rows.append((sec, "", vec, None, "i"))
   if (k == "audio" or (k == "video" and cfg["videos"])) and cfg["audio"]:
    for sec, wav in readers.audio_windows(path, cfg["audio_max_windows"]):
+    self.drain()
     if (vec := emb.audio(wav)) is None: break
     rows.append((sec, "", vec, None, "a"))
   return rows
@@ -159,6 +227,7 @@ class Indexer:
    elif loc is not None and text and not readers.mostly_numeric(text) and (k == "pdf" or len(todo) <= MAX_VECTOR_CHUNKS): todo.append((cid, text))
   pairs = []
   for i in range(0, len(todo), 16):
+   self.drain()
    batch = todo[i:i + 16]
    pairs += zip([c for c, _ in batch], self.embedder.documents([(path.name, t) for _, t in batch]))
   self.store.set_vectors(fid, pairs, self.cfg["model"])
@@ -181,7 +250,7 @@ class Indexer:
 
  def cycle(self):
   """One full pass: remove deleted files, index new/changed ones, then continue long PDFs."""
-  use_vectors = self.online()
+  use_vectors = self.use_vectors = self.online()
   known = self.store.files()
   found, todo = set(), []
   for path, scope, k in walk(self.cfg):
@@ -199,6 +268,8 @@ class Indexer:
   self.log(f"[garimpo] {len(found)} arquivos, {len(todo)} para indexar")
   for n, (_, _, key, scope, k, unchanged) in enumerate(todo, 1):
    while self.paused(): self.status("paused", pending=len(todo) - n + 1); time.sleep(10)
+   self.drain()
+   if not Path(key).exists() or (not unchanged and self.fresh(Path(key))): continue  # handled live meanwhile
    self.status("indexing", done=n - 1, pending=len(todo), current=key)
    try: self.reembed(Path(key), k) if unchanged else self.process(Path(key), scope, k, use_vectors)
    except EmbedError as e:
@@ -209,6 +280,7 @@ class Indexer:
    self._bump()
   partial = [r[0] for r in self.store.db.execute("select path from files where state='partial'")]
   for key in partial:
+   self.drain()
    self.status("indexing", done=0, pending=len(partial), current=key)
    try: self.continue_pdf(Path(key), use_vectors)
    except Exception as e: self.log(f"[garimpo] erro em {key}: {e!r}"); self._mark_error(key)
@@ -222,7 +294,15 @@ class Indexer:
   if row: self.store.set_state(row[0], "error")
 
  def watch(self):
+  """Full pass, then react to inotify events until the periodic safety rescan (or a queue overflow)."""
+  self.start_watching()
   while True:
    try: ok = self.cycle()
    except Exception as e: ok = False; self.log(f"[garimpo] ciclo falhou: {e!r}")
-   time.sleep(self.cfg["rescan_seconds"] if ok else 15)  # embedding server restarting: retry soon
+   deadline = time.time() + (self.cfg["rescan_seconds"] if ok else 15)  # embedding server restarting: retry soon
+   while time.time() < deadline and not self.rescan_now.is_set():
+    if self.pending and not self.paused():
+     self.use_vectors = self.use_vectors or self.embedder.status()[0]
+     self.drain()
+    time.sleep(0.5)
+   self.rescan_now.clear()

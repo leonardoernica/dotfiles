@@ -1,4 +1,4 @@
-import os,sys,tempfile,unittest,zipfile,zlib
+import os,sys,tempfile,time,unittest,zipfile,zlib
 from pathlib import Path
 from unittest.mock import patch
 import numpy as np
@@ -65,6 +65,46 @@ class CodeWalkTests(unittest.TestCase):
    (repo/'.gitignore').write_text('ignored/\n');subprocess.run(['git','init','-q',str(repo)],check=True)
    names=sorted(str(p.relative_to(repo)) for p,_,_ in walk(cfg_for(Path(d)/'none',code_roots=[Path(d)])))
    self.assertEqual(names,['.github/ci.py','build.py','src/app.py'])
+
+class LiveTests(unittest.TestCase):
+ def tree(self,root):
+  files=['notas.md','fotos/praia.jpg','.oculto/x.md','node_modules/a.md','x_cache/b.md','secrets/c.md','id_rsa','app.py',
+         'proj/package.json','proj/README.md','proj/shot.png','dados/'+'x'*0+'keep.pdf','download.crdownload','musica.mp3']
+  files+=[f'dump/{i}.txt' for i in range(210)]
+  for rel in files:(root/rel).parent.mkdir(parents=True,exist_ok=True);(root/rel).write_text('conteúdo')
+ def test_classify_matches_full_walk(self):
+  from watcher import classify
+  with tempfile.TemporaryDirectory() as d:
+   root=Path(d)/'r';self.tree(root);cfg=cfg_for(root)
+   walked={p for p,_,_ in walk(cfg)}
+   every={Path(dp)/n for dp,_,ns in os.walk(root) for n in ns}
+   self.assertEqual({p for p in every if classify(p,cfg)},walked)
+   self.assertIn(root/'proj/shot.png',walked);self.assertNotIn(root/'proj/README.md',walked);self.assertNotIn(root/'dump/1.txt',walked)
+ def wait(self,idx,cond,timeout=6):
+  end=time.time()+timeout
+  while time.time()<end:
+   idx.drain(quiet=0.3)
+   if cond():return True
+   time.sleep(0.1)
+  return False
+ def test_inotify_indexes_new_moved_and_deleted_files(self):
+  with tempfile.TemporaryDirectory() as d:
+   root=Path(d)/'r';root.mkdir();cfg=cfg_for(root);store=Store(Path(d)/'i.db')
+   idx=Indexer(cfg,store,FakeEmbedder(),log=lambda m:None);idx.use_vectors=True;idx.start_watching()
+   time.sleep(0.3)
+   s=search.Searcher(store,FakeEmbedder(),cfg);found=lambda q:[os.path.basename(r['path']) for r in s.search(q)[1]]
+   (root/'baixado.md').write_text('orçamento da reforma da cozinha')
+   self.assertTrue(self.wait(idx,lambda:'baixado.md' in found('reforma cozinha')))
+   tmp=Path(d)/'fora';(tmp/'sub').mkdir(parents=True);(tmp/'sub/viagem.md').write_text('roteiro de viagem para Lisboa')
+   os.rename(tmp,root/'pasta')  # a whole folder moved in (like unzipping elsewhere and moving)
+   self.assertTrue(self.wait(idx,lambda:'viagem.md' in found('Lisboa')))
+   (root/'pasta/sub/novo.md').write_text('arquivo criado depois na pasta nova')  # the new folder is watched too
+   self.assertTrue(self.wait(idx,lambda:'novo.md' in found('criado depois')))
+   (root/'baixado.md').unlink()
+   self.assertTrue(self.wait(idx,lambda:'baixado.md' not in found('reforma cozinha')))
+   import shutil;shutil.rmtree(root/'pasta')
+   self.assertTrue(self.wait(idx,lambda:not found('Lisboa')))
+   store.db.close()
 
 class SearchTests(unittest.TestCase):
  def setUp(self):

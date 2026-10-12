@@ -29,7 +29,7 @@ DEFAULTS = {
  "pdf_max_pages": 2000,
  "video_max_frames": 40,
  "pause_on_battery": False,
- "rescan_seconds": 120,
+ "rescan_seconds": 600,  # safety net: inotify picks up changes within seconds
  "editor": "code",
 }
 

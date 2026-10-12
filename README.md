@@ -99,6 +99,9 @@ Como funciona:
 - **Privacidade:** somente leitura e sem rede além do download inicial; ignora pastas
   ocultas, `~/.ssh`, `secrets/`, chaves, `.env`, senhas, `node_modules`, caches e
   pastas tipo dataset. Dentro de projetos de código só entram imagens, PDFs e documentos;
+- **Tempo real:** inotify em todas as pastas indexadas; um arquivo baixado, criado,
+  movido ou apagado reflete na busca em poucos segundos, com prioridade sobre a
+  indexação em andamento. A cada 10 min uma varredura de segurança confere tudo;
 - **Velocidade:** a janela fica residente e o SUPER+D só a acorda por D-Bus.
 
 | Tecla | Ação |

@@ -29,5 +29,5 @@
 # pdf_max_pages = 2000
 # video_max_frames = 40
 # pause_on_battery = false
-# rescan_seconds = 120
+# rescan_seconds = 600     # varredura de segurança; mudanças chegam em segundos via inotify
 # editor = "code"          # code, cursor, codium ou zed: abre código na linha certa
