@@ -83,17 +83,22 @@ aplicativos, faz contas e, com `code:`, busca código. Nada sai da máquina.
 
 Como funciona:
 
-- **Modelo:** [EmbeddingGemma 2](https://ollama.com/library/embeddinggemma-2) via
-  Ollama, com texto e imagens no mesmo espaço vetorial (100+ idiomas: buscar em
-  português encontra documentos em inglês);
+- **Modelo:** [EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2), o
+  mesmo do DigUp, na build 8-bit do ggml-org (310 MB de texto + 555 MB de encoders de
+  imagem e áudio). Texto, imagens e som ficam no mesmo espaço vetorial, em 100+ idiomas:
+  buscar em português encontra documentos em inglês e fotos pelo que mostram;
+- **Execução:** `llama-server` do llama.cpp em `127.0.0.1:8765`
+  (`garimpo-embed.service`), só na CPU; a GPU integrada não foi mais rápida. O Ollama
+  não serve aqui: todas as tags `embeddinggemma-2` dele exigem o runtime MLX da Apple;
 - **Leitores:** `pdftotext` página a página (OCR com `tesseract` em páginas
-  escaneadas), docx/odt/pptx/xlsx/epub, OCR de capturas, frames de vídeo com `ffmpeg`;
+  escaneadas), docx/odt/pptx/xlsx/epub, OCR de capturas, frames de vídeo e janelas de
+  30 s de áudio (músicas, gravações e trilhas de vídeo) com `ffmpeg`;
 - **Índice:** um único SQLite em `~/.local/state/garimpo/index.db` com vetores
   float16 e FTS5 para palavras exatas (números de nota, códigos de erro, nomes),
   que recebem bônus no ranking;
-- **Privacidade:** somente leitura; ignora pastas ocultas, `~/.ssh`, `secrets/`,
-  chaves, `.env`, senhas, `node_modules`, caches e pastas tipo dataset. Dentro de
-  projetos de código só entram imagens, PDFs e documentos;
+- **Privacidade:** somente leitura e sem rede além do download inicial; ignora pastas
+  ocultas, `~/.ssh`, `secrets/`, chaves, `.env`, senhas, `node_modules`, caches e
+  pastas tipo dataset. Dentro de projetos de código só entram imagens, PDFs e documentos;
 - **Velocidade:** a janela fica residente e o SUPER+D só a acorda por D-Bus.
 
 | Tecla | Ação |
@@ -106,22 +111,24 @@ Como funciona:
 | Tab | prévia: imagem, página do PDF ou frame do vídeo |
 | Esc | limpar / fechar |
 
-Requisitos: Ollama ≥ 0.36 e o modelo.
+Instalação (sem root): `garimpo setup` baixa o llama.cpp `b11574` e o modelo, confere
+o SHA-256 fixado em `config.py` e instala em `~/.local/opt/llama-cpp` e
+`~/.cache/garimpo/models` (~950 MB). O OCR em português precisa de um pacote do sistema:
 
 ```bash
-sudo pacman -S --needed ollama-vulkan tesseract-data-por   # Vulkan usa a GPU AMD integrada
-ollama pull embeddinggemma-2:440m
-garimpo doctor
+garimpo setup && garimpo doctor
+sudo pacman -S --needed tesseract-data-por
 ```
 
-O `install.sh` ativa `garimpo-indexer.service` (com `nice` e I/O ociosa). Comandos:
+O `install.sh` roda o setup e ativa `garimpo-embed.service` e `garimpo-indexer.service`
+(com `nice` e I/O ociosa). Comandos:
 
 ```bash
 garimpo search "contrato de aluguel com animais"   # busca no terminal
 garimpo open "code: retry com backoff"             # abre a paleta já pesquisando
 garimpo status                                     # progresso do índice
 garimpo pause | garimpo resume
-journalctl --user -u garimpo-indexer -f
+journalctl --user -u garimpo-indexer -u garimpo-embed -f
 ```
 
 Configuração em `garimpo/.config/garimpo/config.toml` (pastas, busca de código,
@@ -176,7 +183,8 @@ apagados:
 ```bash
 stow -D -t ~/.config kitty waybar wlogout gtk-3.0 gtk-4.0
 stow -D -t ~ starship zsh garimpo
-systemctl --user disable --now garimpo-indexer.service
+systemctl --user disable --now garimpo-indexer.service garimpo-embed.service
+rm -rf ~/.local/opt/llama-cpp ~/.cache/garimpo ~/.local/state/garimpo
 rm ~/.config/hypr/hyprland.lua ~/.config/hypr/hyprland.conf \
    ~/.config/hypr/hyprpaper.conf
 ```

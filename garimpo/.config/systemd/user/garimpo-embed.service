@@ -1,0 +1,13 @@
+[Unit]
+Description=Garimpo embeddings (llama.cpp + EmbeddingGemma 2, localhost only)
+
+[Service]
+ExecStart=%h/.local/bin/garimpo serve
+Restart=on-failure
+RestartSec=5
+Nice=5
+MemoryHigh=1500M
+MemoryMax=2500M
+
+[Install]
+WantedBy=default.target

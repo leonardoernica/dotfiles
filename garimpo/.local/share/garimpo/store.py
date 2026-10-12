@@ -8,7 +8,7 @@ create table if not exists files(
  kind text, scope text, state text, done_pages integer default 0, model text);
 create table if not exists chunks(
  id integer primary key, file_id integer not null references files(id) on delete cascade,
- loc integer, text text, vec blob, model text);
+ loc integer, text text, vec blob, model text, modality text default 't');
 create index if not exists chunks_file on chunks(file_id);
 create virtual table if not exists chunks_fts using fts5(
  text, content='', contentless_delete=1, tokenize='unicode61 remove_diacritics 2');
@@ -21,6 +21,11 @@ class Store:
   self.db = sqlite3.connect(path, timeout=30, check_same_thread=False)
   self.db.execute("pragma journal_mode=wal"); self.db.execute("pragma foreign_keys=on")
   self.db.executescript(SCHEMA)
+  if "modality" not in [r[1] for r in self.db.execute("pragma table_info(chunks)")]:  # index from an older version
+   with self.db:
+    self.db.execute("alter table chunks add column modality text default 't'")
+    self.db.execute("update chunks set modality = case (select kind from files where id=file_id) when 'audio' then 'a' else 'i' end "
+                    "where coalesce(text,'')='' and loc is not null")
   self.lock = threading.Lock()
   self._matrix = {}  # scope -> (generation, ids, matrix)
 
@@ -55,12 +60,12 @@ class Store:
    if done_pages is not None: self.db.execute("update files set done_pages=? where id=?", (done_pages, file_id))
 
  def add_chunks(self, file_id, rows, model):
-  """rows: [(loc, text, vec_or_None, searchable_text)]"""
+  """rows: [(loc, text, vec_or_None, searchable_text[, modality])] — modality: t(ext), i(mage) or a(udio)"""
   with self.db:
-   for loc, text, vec, fts in rows:
+   for loc, text, vec, fts, *rest in rows:
     blob = None if vec is None else np.asarray(vec, dtype=np.float16).tobytes()
-    cid = self.db.execute("insert into chunks(file_id,loc,text,vec,model) values(?,?,?,?,?)",
-                          (file_id, loc, text, blob, model if blob else None)).lastrowid
+    cid = self.db.execute("insert into chunks(file_id,loc,text,vec,model,modality) values(?,?,?,?,?,?)",
+                          (file_id, loc, text, blob, model if blob else None, rest[0] if rest else "t")).lastrowid
     if fts: self.db.execute("insert into chunks_fts(rowid,text) values(?,?)", (cid, fts))
 
  def chunks_of(self, file_id):
@@ -68,7 +73,7 @@ class Store:
 
  def drop_visual(self, file_id):
   """Remove image/frame vectors (chunks without text) so they can be recomputed."""
-  with self.db: self.db.execute("delete from chunks where file_id=? and loc is not null and coalesce(text,'')=''", (file_id,))
+  with self.db: self.db.execute("delete from chunks where file_id=? and modality in ('i','a')", (file_id,))
 
  def set_vectors(self, file_id, pairs, model):
   """Attach vectors to existing chunks and mark the file as embedded by `model`."""
@@ -88,17 +93,18 @@ class Store:
    if row: self._delete_chunks(row[0]); self.db.execute("delete from files where id=?", (row[0],))
 
  def matrix(self, scope, model):
-  """Cached (chunk_ids, float32 matrix) for the scope; rebuilt only when the index changes."""
+  """Cached (chunk_ids, float32 matrix, modalities) for the scope; rebuilt only when the index changes."""
   gen = self.generation()
   cached = self._matrix.get(scope)
-  if cached and cached[0] == gen: return cached[1], cached[2]
+  if cached and cached[0] == gen: return cached[1:]
   with self.lock:
-   rows = self.db.execute("select c.id,c.vec from chunks c join files f on f.id=c.file_id "
+   rows = self.db.execute("select c.id,c.vec,c.modality from chunks c join files f on f.id=c.file_id "
                           "where f.scope=? and c.vec is not null and c.model=?", (scope, model)).fetchall()
   ids = np.fromiter((r[0] for r in rows), dtype=np.int64, count=len(rows))
   mat = np.frombuffer(b"".join(r[1] for r in rows), dtype=np.float16).reshape(len(rows), -1).astype(np.float32) if rows else np.zeros((0, 1), np.float32)
-  self._matrix[scope] = (gen, ids, mat)
-  return ids, mat
+  mods = np.array([r[2] or "t" for r in rows])
+  self._matrix[scope] = (gen, ids, mat, mods)
+  return ids, mat, mods
 
  def keyword(self, match, scope, limit=200):
   try:

@@ -7,6 +7,8 @@
   garimpo index [--watch]    index the configured folders (once, or continuously)
   garimpo search TEXT        search from the terminal (prefix with code: for code)
   garimpo status | doctor    index state / dependency check
+  garimpo setup              download the pinned llama.cpp + EmbeddingGemma 2 (SHA-256 checked)
+  garimpo serve [--query]    run the local embedding server (garimpo-embed / garimpo-query services)
   garimpo pause | resume     pause or resume background indexing
 """
 import argparse, json, os, shutil, sys, time
@@ -50,8 +52,15 @@ def cmd_status(args, cfg):
 def cmd_doctor(args, cfg):
  from embed import Embedder
  import readers
+ import runtime
  ok, msg = Embedder(cfg).status()
- checks = [("Ollama + modelo", ok, msg)]
+ checks = [("llama.cpp " + config.LLAMA_BUILD, (runtime.llama_dir() / "llama-server").exists(), str(runtime.llama_dir())),
+           ("modelos", all((config.MODELS / n).exists() for n in config.MODEL_FILES), str(config.MODELS)),
+           ("servidor de embeddings", ok, msg)]
+ try:
+  Embedder(cfg)._request("/health", timeout=3, url=cfg["query_server"])
+  checks.append(("servidor de consultas", True, cfg["query_server"]))
+ except Exception as e: checks.append(("servidor de consultas", False, f"{e} (systemctl --user status garimpo-query)"))
  for tool, why in (("pdftotext", "texto de PDFs (poppler)"), ("tesseract", "OCR de capturas e PDFs escaneados"),
                    ("ffmpeg", "frames de vídeo"), ("wl-copy", "copiar arquivos"), ("busctl", "abertura instantânea")):
   checks.append((tool, bool(shutil.which(tool)), why))
@@ -68,12 +77,16 @@ def main():
  p = sub.add_parser("index"); p.add_argument("--watch", action="store_true")
  p = sub.add_parser("open"); p.add_argument("text", nargs="+")
  p = sub.add_parser("search"); p.add_argument("text", nargs="+"); p.add_argument("-n", "--limit", type=int, default=15)
- for name in ("status", "doctor", "pause", "resume"): sub.add_parser(name)
+ p = sub.add_parser("serve"); p.add_argument("--query", action="store_true")
+ for name in ("status", "doctor", "pause", "resume", "setup"): sub.add_parser(name)
  args = parser.parse_args()
  cfg = config.load()
  if args.cmd in (None, "ui"):
   import ui
   return ui.main(hidden=getattr(args, "hidden", False))
+ if args.cmd in ("setup", "serve"):
+  import runtime
+  return runtime.setup() if args.cmd == "setup" else runtime.serve(cfg, query=args.query)
  if args.cmd == "pause": config.STATE.mkdir(parents=True, exist_ok=True); (config.STATE / "paused").touch(); return
  if args.cmd == "resume": (config.STATE / "paused").unlink(missing_ok=True); return
  {"open": cmd_open, "index": cmd_index, "search": cmd_search, "status": cmd_status, "doctor": cmd_doctor}[args.cmd](args, cfg)

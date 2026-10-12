@@ -1,6 +1,7 @@
 [Unit]
 Description=Garimpo semantic file indexer
-After=graphical-session.target
+After=graphical-session.target garimpo-embed.service
+Wants=garimpo-embed.service
 
 [Service]
 ExecStart=%h/.local/bin/garimpo index --watch

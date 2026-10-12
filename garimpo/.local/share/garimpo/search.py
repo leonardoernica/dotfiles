@@ -4,7 +4,11 @@ from pathlib import Path
 import numpy as np
 from embed import EmbedError
 
-MIN_SIMILARITY = 0.30
+# Calibrated on EmbeddingGemma 2 (Q8): text queries score ~0.55 against unrelated text and
+# 0.69-0.85 against relevant passages. Images and audio sit in their own ranges, so each
+# modality is re-centred on its own median for this query before one threshold applies.
+BASELINE = 0.55
+MIN_SIMILARITY = 0.64
 KEYWORD_WEIGHT = 0.25
 NAME_WEIGHT = 0.30
 
@@ -56,24 +60,31 @@ class Searcher:
   self.semantic_error = None
 
  def _semantic(self, scope, query):
-  ids, mat = self.store.matrix(scope, self.cfg["model"])
+  ids, mat, mods = self.store.matrix(scope, self.cfg["model"])
   if not len(ids): return {}
-  try: qv = self.embedder.query(query); self.semantic_error = None
+  try: qv = self.embedder.query(query, scope); self.semantic_error = None
   except EmbedError as e: self.semantic_error = str(e); return {}
   if mat.shape[1] != len(qv): return {}
   sims = mat @ qv
+  for m in ("i", "a"):  # images and audio: centre on their own median
+   mask = mods == m
+   if mask.sum() >= 20: sims[mask] += BASELINE - np.median(sims[mask])
+  self._all = dict(zip(ids.tolist(), sims.tolist()))  # true similarity for exact-word hits below the cut
   top = np.argpartition(-sims, min(400, len(sims) - 1))[:400]
   return {int(ids[i]): float(sims[i]) for i in top if sims[i] >= MIN_SIMILARITY}
 
  def search(self, query, limit=30, semantic=True):
   scope, text = parse(query)
   if not text: return scope, []
+  self._all = {}
   scores = self._semantic(scope, text) if semantic else {}
   match = fts_query(text)
   hits = self.store.keyword(match, scope) if match else []
   if hits:
    best = min(r for _, r in hits) or -1e-9
-   for cid, rank in hits: scores[cid] = scores.get(cid, 0.0) + KEYWORD_WEIGHT * (rank / best if best < 0 else 1.0)
+   for cid, rank in hits:
+    base = scores.get(cid, self._all.get(cid, BASELINE))
+    scores[cid] = base + KEYWORD_WEIGHT * (rank / best if best < 0 else 1.0)
   info = self.store.chunk_info(list(scores))
   qwords = set(words(text))
   per_file = {}

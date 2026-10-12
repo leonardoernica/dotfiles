@@ -1,0 +1,12 @@
+[Unit]
+Description=Garimpo search queries (text-only EmbeddingGemma 2, localhost only)
+
+[Service]
+ExecStart=%h/.local/bin/garimpo serve --query
+Restart=on-failure
+RestartSec=5
+MemoryHigh=600M
+MemoryMax=1G
+
+[Install]
+WantedBy=default.target

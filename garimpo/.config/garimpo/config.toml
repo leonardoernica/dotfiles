@@ -13,13 +13,17 @@
 # Padrões glob extras a ignorar, ex.: ["*/Documents/Codex/*/work/*"]
 # exclude = []
 
-# Embeddings locais via Ollama. Trocar de modelo reindexa reaproveitando o texto já extraído.
-# ollama = "http://localhost:11434"
-# model = "embeddinggemma-2:440m"   # texto + imagem, 714 MB
-# dimensions = 768
+# Embeddings locais: llama.cpp + EmbeddingGemma 2 (garimpo setup / garimpo-embed.service).
+# Trocar "model" refaz os vetores reaproveitando o texto já extraído.
+# server = "http://127.0.0.1:8765"
+# model = "embeddinggemma-2-Q8_0"
+# dimensions = 768         # Matryoshka: 512 ou 256 economizam espaço com pouca perda
+# threads = 0              # 0 = metade dos núcleos
 
 # images = true            # fotos e capturas pelo conteúdo visual
-# videos = true            # frames de vídeo (abre no momento exato no mpv)
+# videos = true            # frames e trilha sonora de vídeos (abre no momento exato no mpv)
+# audio = true             # músicas e gravações em janelas de 30 s
+# audio_max_windows = 120
 # ocr = true               # texto de capturas de tela e PDFs escaneados (tesseract)
 # pdf_first_pages = 30     # primeira passada; o restante vem depois dos outros arquivos
 # pdf_max_pages = 2000

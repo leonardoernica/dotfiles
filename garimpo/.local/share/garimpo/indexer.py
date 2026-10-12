@@ -10,6 +10,7 @@ SKIP_DIRS = {"node_modules", "__pycache__", "venv", ".venv", "env", "site-packag
 SENSITIVE = ["*.pem", "*.key", "*.p12", "*.pfx", "*.kdbx", "*.keystore", "*.jks", "id_rsa*", "id_ed25519*", "id_ecdsa*",
              ".env", ".env.*", "*credential*", "*secret*", "*password*", "*senha*", "*.gpg", "*.asc", "*.ovpn", "*token*"]
 MAX_TEXT = 8 * 1024 * 1024
+MAX_VECTOR_CHUNKS = 300  # long logs/exports: the rest stays searchable by exact words
 MAX_IMAGE = 60 * 1024 * 1024
 PROJECT_MARKERS = {".git", "package.json", "pyproject.toml", "setup.py", "Cargo.toml", "go.mod", "pubspec.yaml",
                    "CMakeLists.txt", "Makefile", "platformio.ini", "requirements.txt", "build.gradle", "pom.xml"}
@@ -17,7 +18,8 @@ DATASET_SIZE = 200  # this many files of mostly one type directly inside: data, 
 DOCUMENT_KINDS = {"image", "pdf", "office"}
 NAMED_OTHER = {".zip", ".rar", ".7z", ".tar", ".gz", ".xz", ".apk", ".iso", ".deb", ".exe", ".svg", ".psd", ".xcf", ".fig",
                ".riv", ".blend", ".doc", ".xls", ".ppt", ".mobi", ".djvu", ".sqlite", ".db", ".ttf", ".otf", ".ai", ".sketch"}
-PRIORITY = {"other": 0, "audio": 0, "text": 1, "office": 1, "code": 1, "pdf": 1, "image": 2, "video": 3}
+DATA_EXTS = {".xlsx", ".ods", ".csv", ".tsv"}  # tables are data: exact words only, like DigUp's numeric text
+PRIORITY = {"other": 0, "text": 1, "office": 1, "code": 1, "pdf": 1, "image": 2, "audio": 3, "video": 3}
 
 def sensitive(name, extra=()):
  low = name.lower()
@@ -50,16 +52,18 @@ def walk(cfg):
     if limited: restricted.add(here)
     dataset = len(names) >= DATASET_SIZE and here not in roots and \
               max(Counter(Path(n).suffix.lower() for n in names).values()) >= 0.8 * len(names)
-    dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS and not sensitive(d, extra)
+    dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS and "cache" not in d.lower() and not sensitive(d, extra)
                and not any(fnmatch.fnmatch(str(here / d), p) for p in extra)]
+    from_git = False
     if scope == "code" and (here / ".git").exists():
      listed = git_files(here)
      if listed is not None:
-      dirs[:] = []
+      dirs[:] = []; from_git = True  # .gitignore decides; tracked dot-folders (.github, .config) are source
       names = [str(p.relative_to(here)) for p in listed]
     for name in names:
      path = here / name
-     if path in seen or any(part.startswith(".") for part in Path(name).parts) or sensitive(path.name, extra): continue
+     if path in seen or sensitive(path.name, extra): continue
+     if any(part.startswith(".") for part in Path(name).parts) and not from_git: continue
      if any(fnmatch.fnmatch(str(path), p) for p in extra): continue
      k = readers.kind(path)
      if scope == "code" and k not in ("code", "text"): continue
@@ -83,14 +87,14 @@ class Indexer:
 
  def online(self):
   ok, msg = self.embedder.status()
-  if not ok: self.log(f"[garimpo] embeddings indisponíveis: {msg} (indexando só texto exato)")
+  self.log(f"[garimpo] embeddings: {msg}" if ok else f"[garimpo] embeddings indisponíveis: {msg} (indexando só texto exato)")
   return ok
 
- def _embed_rows(self, title, pieces, use_vectors):
+ def _embed_rows(self, title, pieces, use_vectors, limit=MAX_VECTOR_CHUNKS):
   """pieces: [(loc, text)] -> rows ready for Store.add_chunks."""
   rows, todo = [], []
   for loc, text in pieces:
-   if use_vectors and not readers.mostly_numeric(text): todo.append((loc, text))
+   if use_vectors and (limit is None or len(todo) < limit) and not readers.mostly_numeric(text): todo.append((loc, text))
    else: rows.append((loc, text, None, text))
   for i in range(0, len(todo), 16):
    batch = todo[i:i + 16]
@@ -109,60 +113,63 @@ class Indexer:
   state, done_pages = "done", None
   if k in ("text", "code") and st.st_size <= MAX_TEXT:
    pieces = readers.read_code(path) if k == "code" else readers.chunks(readers.read_text(path))
-   self.store.add_chunks(fid, self._embed_rows(path.name, pieces, use_vectors), model)
+   self.store.add_chunks(fid, self._embed_rows(path.name, pieces, use_vectors and path.suffix.lower() not in DATA_EXTS), model)
   elif k == "office" and st.st_size <= MAX_TEXT * 8:
-   self.store.add_chunks(fid, self._embed_rows(path.name, readers.read_office(path), use_vectors), model)
+   self.store.add_chunks(fid, self._embed_rows(path.name, readers.read_office(path), use_vectors and path.suffix.lower() not in DATA_EXTS), model)
   elif k == "pdf":
    pages = readers.pdf_pages(path)
    last = min(pages, self.cfg["pdf_first_pages"], self.cfg["pdf_max_pages"])
-   if last: self.store.add_chunks(fid, self._embed_rows(path.name, readers.read_pdf(path, 1, last, self.langs), use_vectors), model)
+   if last: self.store.add_chunks(fid, self._embed_rows(path.name, readers.read_pdf(path, 1, last, self.langs), use_vectors, None), model)
    done_pages = last
    if pages > last and last < self.cfg["pdf_max_pages"]: state = "partial"
   elif k == "image" and st.st_size <= MAX_IMAGE:
-   rows = self.visual_rows(path, k) if use_vectors else []
+   rows = self.media_rows(path, k) if use_vectors else []
    if self.langs and readers.wants_ocr(path):
     text = readers.ocr(path, self.langs)
     if len(text) >= 20: rows += self._embed_rows(path.name, [(0, t) for _, t in readers.chunks(text)], use_vectors)
    self.store.add_chunks(fid, rows, model)
-  elif k == "video" and use_vectors:
-   self.store.add_chunks(fid, self.visual_rows(path, k), model)
+  elif k in ("video", "audio") and use_vectors:
+   self.store.add_chunks(fid, self.media_rows(path, k), model)
   self.store.set_state(fid, state, done_pages)
 
- def visual_rows(self, path, k):
-  """Image or video-frame vectors in the shared text/image space."""
-  rows = []
-  if not self.cfg["images"] or self.embedder.images is False: return rows
-  if k == "image" and path.stat().st_size <= MAX_IMAGE and (jpg := readers.image_bytes(path)):
-   vec = self.embedder.image(jpg)
-   if vec is not None: rows.append((0, "", vec, None))
-  elif k == "video" and self.cfg["videos"]:
-   for sec, jpg in readers.video_frames(path, self.cfg["video_max_frames"]):
-    vec = self.embedder.image(jpg)
-    if vec is None: break
-    rows.append((sec, "", vec, None))
+ def media_rows(self, path, k):
+  """Image, video-frame and sound vectors in the shared text/image/audio space."""
+  rows, cfg, emb = [], self.cfg, self.embedder
+  if k == "image" and cfg["images"] and path.stat().st_size <= MAX_IMAGE and (jpg := readers.image_bytes(path)):
+   if (vec := emb.image(jpg)) is not None: rows.append((0, "", vec, None, "i"))
+  if k == "video" and cfg["videos"] and cfg["images"]:
+   for sec, jpg in readers.video_frames(path, cfg["video_max_frames"]):
+    if (vec := emb.image(jpg)) is None: break
+    rows.append((sec, "", vec, None, "i"))
+  if (k == "audio" or (k == "video" and cfg["videos"])) and cfg["audio"]:
+   for sec, wav in readers.audio_windows(path, cfg["audio_max_windows"]):
+    if (vec := emb.audio(wav)) is None: break
+    rows.append((sec, "", vec, None, "a"))
   return rows
 
  def reembed(self, path, k):
   """The file is unchanged but was indexed without (or with another) model: reuse the extracted text."""
   fid, *_ = self.store.file(path)
   label = readers.name_text(path)
+  data = path.suffix.lower() in DATA_EXTS
   todo = []
   for cid, loc, text in self.store.chunks_of(fid):
+   if data and loc is not None: continue
    if loc is None and label: todo.append((cid, f"{label} ({path.parent.name})"))
-   elif loc is not None and text and not readers.mostly_numeric(text): todo.append((cid, text))
+   elif loc is not None and text and not readers.mostly_numeric(text) and (k == "pdf" or len(todo) <= MAX_VECTOR_CHUNKS): todo.append((cid, text))
   pairs = []
   for i in range(0, len(todo), 16):
    batch = todo[i:i + 16]
    pairs += zip([c for c, _ in batch], self.embedder.documents([(path.name, t) for _, t in batch]))
   self.store.set_vectors(fid, pairs, self.cfg["model"])
-  if k in ("image", "video"):
-   self.store.drop_visual(fid); self.store.add_chunks(fid, self.visual_rows(path, k), self.cfg["model"])
+  if k in ("image", "video", "audio"):
+   self.store.drop_visual(fid); self.store.add_chunks(fid, self.media_rows(path, k), self.cfg["model"])
 
  def continue_pdf(self, path, use_vectors, block=100):
   fid, _, _, _, done, model = self.store.file(path)
   pages = readers.pdf_pages(path)
   last = min(pages, done + block, self.cfg["pdf_max_pages"])
-  self.store.add_chunks(fid, self._embed_rows(path.name, readers.read_pdf(path, done + 1, last, self.langs), use_vectors), model)
+  self.store.add_chunks(fid, self._embed_rows(path.name, readers.read_pdf(path, done + 1, last, self.langs), use_vectors, None), model)
   self.store.set_state(fid, "partial" if last < min(pages, self.cfg["pdf_max_pages"]) else "done", last)
 
  def paused(self):
@@ -216,6 +223,6 @@ class Indexer:
 
  def watch(self):
   while True:
-   try: self.cycle()
-   except Exception as e: self.log(f"[garimpo] ciclo falhou: {e!r}")
-   time.sleep(self.cfg["rescan_seconds"])
+   try: ok = self.cycle()
+   except Exception as e: ok = False; self.log(f"[garimpo] ciclo falhou: {e!r}")
+   time.sleep(self.cfg["rescan_seconds"] if ok else 15)  # embedding server restarting: retry soon

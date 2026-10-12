@@ -52,7 +52,8 @@ def highlight(text, query):
   f = search.fold(ch); folded.append(f); index += [i] * len(f)
  folded, spans = "".join(folded), []
  for w in set(search.words(query)):
-  spans += [(index[m.start()], index[m.end() - 1] + 1) for m in re.finditer(re.escape(w), folded)]
+  if len(w) < 3 and not w.isdigit(): continue  # "de", "em": noise when highlighted
+  spans += [(index[m.start()], index[m.end() - 1] + 1) for m in re.finditer(r"(?<!\w)" + re.escape(w), folded)]
  out, last = [], 0
  for a, b in sorted(spans):
   if a < last: continue
@@ -415,7 +416,7 @@ def open_file(item, cfg):
  if k == "pdf" and loc and loc > 1 and any(b in hid for b in BROWSERS):
   handler.launch_uris([f"{uri}#page={loc}"], None); return
  if k == "pdf" and loc and loc > 1 and "okular" in hid: spawn(["okular", "-p", str(loc), path]); return
- if k == "video" and loc and "mpv" in hid: spawn(["mpv", f"--start={loc}", path]); return
+ if k in ("video", "audio") and loc and "mpv" in hid: spawn(["mpv", "--force-window", f"--start={loc}", path]); return
  if k in ("code", "text") and loc and loc > 1 and cfg["editor"] in ("code", "cursor", "codium", "zed") and GLib.find_program_in_path(cfg["editor"]):
   spawn([cfg["editor"], "-g", f"{path}:{loc}"] if cfg["editor"] != "zed" else ["zed", f"{path}:{loc}"]); return
  if k == "code" and GLib.find_program_in_path(cfg["editor"]): spawn([cfg["editor"], path]); return
@@ -464,7 +465,7 @@ class Worker:
     job, self.pending = self.pending, None
     warm, self.warm_flag = self.warm_flag, False
    if warm and not job:
-    try: self.store.matrix("files", self.cfg["model"]); self.embedder.query("warm up")
+    try: self.store.matrix("files", self.cfg["model"]); self.embedder.query("warm up"); self.embedder._props()
     except Exception: pass
     continue
    query, callback = job
@@ -509,7 +510,7 @@ class App(Adw.Application):
   state = st.get("state")
   if state == "indexing": return f"Indexando {st.get('done', 0)}/{st.get('pending', 0)} · {os.path.basename(st.get('current', ''))}"
   if state == "paused": return "Indexação pausada"
-  if state == "offline": return "Ollama offline · busca só por palavras"
+  if state == "offline": return "Embeddings offline · busca só por palavras"
   stats = self.status_db.stats()
   if self.worker and getattr(self.worker, "searcher", None) and self.worker.searcher.semantic_error: return "Busca semântica indisponível · só palavras"
   return f"{stats['files']:,} itens indexados".replace(",", ".") if stats["files"] else "Índice vazio · rode garimpo index"

@@ -140,6 +140,17 @@ def video_frames(path, max_frames):
   if jpg: yield int(t), jpg
   t += step
 
+def audio_windows(path, max_windows, window=30, stride=20):
+ """Yield (second, wav_bytes): overlapping 30 s windows, mono 16 kHz as the audio encoder expects."""
+ duration = video_duration(path)
+ t = 0.0
+ while t < max(duration, 0.1) and max_windows > 0:
+  wav = run("ffmpeg", "-v", "error", "-ss", f"{t:.2f}", "-t", str(window), "-i", str(path), "-vn", "-ac", "1", "-ar", "16000",
+            "-f", "wav", "-", timeout=120, binary=True)
+  if len(wav) <= 44 + 16000: break  # header only or under half a second: no (more) sound
+  yield int(t), wav
+  t += stride; max_windows -= 1
+
 def ocr_langs():
  if not shutil.which("tesseract"): return None
  have = set(run("tesseract", "--list-langs").split())

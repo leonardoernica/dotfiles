@@ -64,14 +64,14 @@ for pkg in starship zsh applications garimpo; do
     stow_or_warn "$HOME" "$pkg"
 done
 
-# ── Garimpo: indexador semântico em segundo plano (SUPER+D abre a busca)
+# ── Garimpo: llama.cpp + EmbeddingGemma 2 locais, indexador em segundo plano
+if [ -x "$HOME/.local/bin/garimpo" ]; then
+    "$HOME/.local/bin/garimpo" setup || echo "   ⚠ garimpo setup falhou (rede?); rode novamente depois"
+fi
 if command -v systemctl &>/dev/null && [ -f "$HOME/.config/systemd/user/garimpo-indexer.service" ]; then
     systemctl --user daemon-reload
-    systemctl --user enable --now garimpo-indexer.service >/dev/null 2>&1 \
-        && echo "   ✓ garimpo-indexer ativo" || echo "   ⚠ não foi possível ativar garimpo-indexer"
-fi
-if command -v ollama &>/dev/null && ! ollama list 2>/dev/null | grep -q '^embeddinggemma-2:440m'; then
-    echo "   → Para busca semântica: ollama pull embeddinggemma-2:440m (requer Ollama ≥ 0.36)"
+    systemctl --user enable --now garimpo-embed.service garimpo-query.service garimpo-indexer.service >/dev/null 2>&1 \
+        && echo "   ✓ serviços do Garimpo ativos" || echo "   ⚠ não foi possível ativar os serviços do Garimpo"
 fi
 
 # ── Hypr: Lua é a configuração principal desde Hyprland 0.55.
