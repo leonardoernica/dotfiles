@@ -1,0 +1,15 @@
+[Unit]
+Description=Garimpo semantic file indexer
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/garimpo index --watch
+Restart=on-failure
+RestartSec=30
+Nice=19
+IOSchedulingClass=idle
+CPUWeight=20
+MemoryHigh=1500M
+
+[Install]
+WantedBy=default.target

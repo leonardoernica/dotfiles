@@ -1,6 +1,6 @@
 -- Hyprland 0.56+ configuration
 local terminal, file_manager, chatgpt = "kitty", "dolphin", "chatgpt"
-local menu, main_mod = "rofi -show drun -show-icons", "SUPER"
+local menu, main_mod = "$HOME/.local/bin/garimpo", "SUPER"
 
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 hl.env("TERMINAL", terminal)
@@ -45,6 +45,8 @@ hl.on("hyprland.start", function()
     -- Export the complete session environment before apps request portals.
     -- xdg-desktop-portal and XDPH are activated automatically through D-Bus.
     hl.exec_cmd("dbus-update-activation-environment --systemd --all")
+    -- Garimpo stays resident so SUPER+D opens instantly.
+    hl.exec_cmd(menu .. " ui --hidden")
     hl.exec_cmd(terminal)
     hl.exec_cmd("chromium", { workspace = "2 silent" })
     hl.exec_cmd(chatgpt, { workspace = "3 silent" })
@@ -55,6 +57,11 @@ hl.window_rule({ name = "chatgpt-workspace", match = { class = "^Chatgpt$" }, wo
 hl.layer_rule({
     name = "blur-logout", match = { namespace = "^(wlogout|logout_dialog)$" },
     blur = true, ignore_alpha = 0,
+})
+hl.window_rule({
+    name = "garimpo-palette", match = { class = "^io\\.github\\.leonardoernica\\.Garimpo$" },
+    float = true, center = true, size = "800 560", pin = true, dim_around = true,
+    border_size = 0, rounding = 18, no_shadow = true, animation = "popin 92%",
 })
 hl.layer_rule({
     name = "launcher-glass", match = { namespace = "^rofi$" },

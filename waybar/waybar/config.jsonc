@@ -54,7 +54,7 @@
     },
     "custom/launcher": {
         "format": "󰣇 ",
-        "on-click": "rofi -show drun -show-icons",
+        "on-click": "$HOME/.local/bin/garimpo",
         "tooltip": false
     },
     "custom/todo": {

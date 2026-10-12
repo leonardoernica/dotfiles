@@ -12,7 +12,8 @@ Wlogout e SDDM. O Hyprland usa Lua como formato principal; o arquivo `.conf`
 - `waybar/waybar`: barra, central de Wi-Fi e gerenciador de tarefas
 - `wlogout/wlogout`: menu de sessão e bloqueio
 - `kitty/kitty`: terminal Kitty
-- `rofi/.config/rofi`: command palette translúcida com busca fuzzy
+- `garimpo`: busca semântica local no SUPER+D (apps, arquivos, imagens, vídeos e código)
+- `rofi/.config/rofi`: command palette translúcida com busca fuzzy (fallback)
 - `applications/.local/share/applications`: ajustes locais do menu de aplicativos
 - `zsh/.zshrc` e `starship/.config/starship`: shell e prompt
 - `gtk-3.0` e `gtk-4.0`: aparência GTK
@@ -73,6 +74,59 @@ systemctl --user status xdg-desktop-portal xdg-desktop-portal-hyprland
 journalctl --user -b -u xdg-desktop-portal -u xdg-desktop-portal-hyprland
 ```
 
+## Garimpo (SUPER+D)
+
+Busca local inspirada no [DigUp](https://github.com/ARahim3/DigUp): descreva o que
+procura e o Garimpo encontra pelo conteúdo — a página certa do PDF, a foto pelo que
+ela mostra, a captura de tela pelo texto, o momento do vídeo. Também abre
+aplicativos, faz contas e, com `code:`, busca código. Nada sai da máquina.
+
+Como funciona:
+
+- **Modelo:** [EmbeddingGemma 2](https://ollama.com/library/embeddinggemma-2) via
+  Ollama, com texto e imagens no mesmo espaço vetorial (100+ idiomas: buscar em
+  português encontra documentos em inglês);
+- **Leitores:** `pdftotext` página a página (OCR com `tesseract` em páginas
+  escaneadas), docx/odt/pptx/xlsx/epub, OCR de capturas, frames de vídeo com `ffmpeg`;
+- **Índice:** um único SQLite em `~/.local/state/garimpo/index.db` com vetores
+  float16 e FTS5 para palavras exatas (números de nota, códigos de erro, nomes),
+  que recebem bônus no ranking;
+- **Privacidade:** somente leitura; ignora pastas ocultas, `~/.ssh`, `secrets/`,
+  chaves, `.env`, senhas, `node_modules`, caches e pastas tipo dataset. Dentro de
+  projetos de código só entram imagens, PDFs e documentos;
+- **Velocidade:** a janela fica residente e o SUPER+D só a acorda por D-Bus.
+
+| Tecla | Ação |
+|---|---|
+| SUPER+D | abrir/fechar |
+| ↑ ↓, Ctrl+J/K | navegar |
+| Enter | abrir (PDF na página, vídeo no segundo, código na linha) |
+| Ctrl+Enter | mostrar na pasta (Dolphin) |
+| Ctrl+C | copiar o arquivo (ou o resultado da conta) |
+| Tab | prévia: imagem, página do PDF ou frame do vídeo |
+| Esc | limpar / fechar |
+
+Requisitos: Ollama ≥ 0.36 e o modelo.
+
+```bash
+sudo pacman -S --needed ollama-vulkan tesseract-data-por   # Vulkan usa a GPU AMD integrada
+ollama pull embeddinggemma-2:440m
+garimpo doctor
+```
+
+O `install.sh` ativa `garimpo-indexer.service` (com `nice` e I/O ociosa). Comandos:
+
+```bash
+garimpo search "contrato de aluguel com animais"   # busca no terminal
+garimpo open "code: retry com backoff"             # abre a paleta já pesquisando
+garimpo status                                     # progresso do índice
+garimpo pause | garimpo resume
+journalctl --user -u garimpo-indexer -f
+```
+
+Configuração em `garimpo/.config/garimpo/config.toml` (pastas, busca de código,
+modelo, OCR, vídeo). Testes: `python -m unittest tests.test_garimpo`.
+
 ## Waybar
 
 - clique no módulo de rede para abrir a central nativa de Wi-Fi;
@@ -110,6 +164,7 @@ git pull --ff-only
 ```bash
 Hyprland --verify-config -c hypr/hypr/hyprland.lua
 python -m json.tool waybar/waybar/config.jsonc >/dev/null
+python -m unittest tests.test_garimpo
 zsh -n zsh/.zshrc
 ```
 
@@ -120,7 +175,8 @@ apagados:
 
 ```bash
 stow -D -t ~/.config kitty waybar wlogout gtk-3.0 gtk-4.0
-stow -D -t ~ starship zsh
+stow -D -t ~ starship zsh garimpo
+systemctl --user disable --now garimpo-indexer.service
 rm ~/.config/hypr/hyprland.lua ~/.config/hypr/hyprland.conf \
    ~/.config/hypr/hyprpaper.conf
 ```

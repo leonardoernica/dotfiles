@@ -1,0 +1,29 @@
+# Garimpo — busca semântica local (SUPER+D).
+# Todas as chaves são opcionais; os valores comentados são os padrões.
+
+# Pastas indexadas. Pastas ocultas, segredos (~/.ssh, secrets/, *.pem, .env…),
+# node_modules, caches e pastas tipo dataset são ignorados automaticamente.
+# roots = ["~/Documents", "~/Documentos", "~/Downloads", "~/Imagens", "~/Pictures",
+#          "~/Área de trabalho", "~/Desktop", "~/Vídeos", "~/Videos", "~/Músicas", "~/Music", "~/study"]
+
+# Busca de código é opcional (como no DigUp): liste pastas de projetos e pesquise com "code:".
+# Respeita .gitignore. Exemplo: code_roots = ["~/projects"]
+# code_roots = []
+
+# Padrões glob extras a ignorar, ex.: ["*/Documents/Codex/*/work/*"]
+# exclude = []
+
+# Embeddings locais via Ollama. Trocar de modelo reindexa reaproveitando o texto já extraído.
+# ollama = "http://localhost:11434"
+# model = "embeddinggemma-2:440m"   # texto + imagem, 714 MB
+# dimensions = 768
+
+# images = true            # fotos e capturas pelo conteúdo visual
+# videos = true            # frames de vídeo (abre no momento exato no mpv)
+# ocr = true               # texto de capturas de tela e PDFs escaneados (tesseract)
+# pdf_first_pages = 30     # primeira passada; o restante vem depois dos outros arquivos
+# pdf_max_pages = 2000
+# video_max_frames = 40
+# pause_on_battery = false
+# rescan_seconds = 120
+# editor = "code"          # code, cursor, codium ou zed: abre código na linha certa
