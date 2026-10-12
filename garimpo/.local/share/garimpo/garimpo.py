@@ -36,7 +36,8 @@ def cmd_search(args, cfg):
  if searcher.semantic_error: print(f"(sem busca semântica: {searcher.semantic_error})", file=sys.stderr)
  for r in results:
   where = search.location(r)
-  print(f"{r['score']:.3f}  {search.home(r['path'])}" + (f"  [{where}]" if where else ""))
+  tag = f"mídia z={r['z']:.1f}" if r.get("media") else f"{r['score']:.3f}"
+  print(f"{tag}  {search.home(r['path'])}" + (f"  [{where}]" if where else ""))
   if r.get("snippet"): print(f"       {r['snippet'][:140]}")
  print(f"{len(results)} resultados em {time.perf_counter() - started:.2f}s ({scope})", file=sys.stderr)
 

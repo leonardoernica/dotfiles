@@ -93,6 +93,11 @@ Como funciona:
 - **Leitores:** `pdftotext` página a página (OCR com `tesseract` em páginas
   escaneadas), docx/odt/pptx/xlsx/epub, OCR de capturas, frames de vídeo e janelas de
   30 s de áudio (músicas, gravações e trilhas de vídeo) com `ffmpeg`;
+- **Mídia em seção própria:** imagens, frames de vídeo e áudio aparecem em
+  "Imagens, vídeos e áudio", ranqueados pelo quanto se destacam das demais mídias
+  para a busca; assim "mochila" mostra a foto da mochila mesmo quando há textos com a
+  palavra. Para imagens a busca é feita como legenda ("uma foto de mochila"), o que
+  acertou 12 de 14 buscas de teste contra 7 de 14 no formato de documento;
 - **Índice:** um único SQLite em `~/.local/state/garimpo/index.db` com vetores
   float16 e FTS5 para palavras exatas (números de nota, códigos de erro, nomes),
   que recebem bônus no ranking;

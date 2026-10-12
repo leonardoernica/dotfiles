@@ -19,7 +19,8 @@ DOCUMENT_KINDS = {"image", "pdf", "office"}
 NAMED_OTHER = {".zip", ".rar", ".7z", ".tar", ".gz", ".xz", ".apk", ".iso", ".deb", ".exe", ".svg", ".psd", ".xcf", ".fig",
                ".riv", ".blend", ".doc", ".xls", ".ppt", ".mobi", ".djvu", ".sqlite", ".db", ".ttf", ".otf", ".ai", ".sketch"}
 DATA_EXTS = {".xlsx", ".ods", ".csv", ".tsv"}  # tables are data: exact words only, like DigUp's numeric text
-PRIORITY = {"other": 0, "text": 1, "office": 1, "code": 1, "pdf": 1, "image": 2, "audio": 3, "video": 3}
+# Cheap and high-value first: names, then pictures (~1-2 s each), then documents, then sound and video.
+PRIORITY = {"other": 0, "image": 1, "text": 2, "office": 2, "code": 2, "pdf": 2, "audio": 3, "video": 3}
 
 def sensitive(name, extra=()):
  low = name.lower()

@@ -253,10 +253,11 @@ class Palette(Gtk.ApplicationWindow):
   while child := self.list.get_first_child(): self.list.remove(child)
   self.items = []
   apps = [i for i in quick if i["type"] == "app"]; calc = [i for i in quick if i["type"] == "calc"]
-  file_items = [i for i in files if i["type"] == "file"]; web = [i for i in files if i["type"] == "web"]
-  if file_items and len(apps) > 3: apps = apps[:3]
+  media = [i for i in files if i["type"] == "file" and i.get("media")]
+  file_items = [i for i in files if i["type"] == "file" and not i.get("media")]; web = [i for i in files if i["type"] == "web"]
+  if (file_items or media) and len(apps) > 3: apps = apps[:3]
   scope = search.parse(self.query)[0]
-  groups = [("CALCULADORA", calc), ("RECENTES" if empty else "APLICATIVOS", apps),
+  groups = [("CALCULADORA", calc), ("RECENTES" if empty else "APLICATIVOS", apps), ("IMAGENS, VÍDEOS E ÁUDIO", media),
             ("ARQUIVOS RECENTES" if empty else ("CÓDIGO" if scope == "code" else "ARQUIVOS"), file_items), ("WEB", web)]
   for title, group in groups:
    if not group: continue

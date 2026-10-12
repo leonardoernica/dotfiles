@@ -140,14 +140,18 @@ def video_frames(path, max_frames):
   if jpg: yield int(t), jpg
   t += step
 
-def audio_windows(path, max_windows, window=30, stride=20):
- """Yield (second, wav_bytes): overlapping 30 s windows, mono 16 kHz as the audio encoder expects."""
+def audio_windows(path, max_windows, window=30, stride=20, min_tail=10):
+ """Yield (second, wav_bytes): overlapping 30 s windows, mono 16 kHz as the audio encoder expects.
+
+ A short leftover at the end is skipped: the previous window already covers it, and a vector made
+ from a fraction of a second is close to everything (it showed up for every search)."""
  duration = video_duration(path)
  t = 0.0
  while t < max(duration, 0.1) and max_windows > 0:
+  if t > 0 and duration - t < min_tail: break
   wav = run("ffmpeg", "-v", "error", "-ss", f"{t:.2f}", "-t", str(window), "-i", str(path), "-vn", "-ac", "1", "-ar", "16000",
             "-f", "wav", "-", timeout=120, binary=True)
-  if len(wav) <= 44 + 16000: break  # header only or under half a second: no (more) sound
+  if len(wav) <= 44 + 32000: break  # header only or under a second: no (more) sound
   yield int(t), wav
   t += stride; max_windows -= 1
 

@@ -17,9 +17,9 @@ class FakeEmbedder:
   v=np.zeros(64,np.float32)
   for w in search.words(text):v[zlib.crc32(w.encode())%64]+=1
   n=np.linalg.norm(v);return v/n if n else v
- def query(self,text,scope='files'):
+ def query(self,text,scope='files',picture=False):
   if not self.online:raise EmbedError('offline',offline=True)
-  return self._vec(text)
+  return (self._vec(text),self._vec(text)) if picture else self._vec(text)
  def documents(self,pairs):return np.array([self._vec(t) for _,t in pairs])
  def image(self,data):return None
  def audio(self,data):return None
@@ -42,6 +42,12 @@ class ReaderTests(unittest.TestCase):
    self.assertIn('Cláusula sobre animais',readers.read_office(p)[0][1])
  def test_kinds(self):
   self.assertEqual([readers.kind(Path(n)) for n in ('a.PDF','b.jpeg','c.mkv','d.py','e.zip')],['pdf','image','video','code','other'])
+ def test_audio_windows_skip_short_tail(self):
+  with tempfile.TemporaryDirectory() as d:
+   for secs,expect in ((141,[0,20,40,60,80,100,120]),(12,[0]),(45,[0,20])):
+    p=Path(d)/f'a{secs}.wav'
+    import subprocess;subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i',f'sine=frequency=440:duration={secs}',str(p)],check=True)
+    self.assertEqual([t for t,_ in readers.audio_windows(p,120)],expect,secs)
  def test_numeric(self):self.assertTrue(readers.mostly_numeric('1,2,3\n4,5,6\n'*50))
 
 class PrivacyTests(unittest.TestCase):
