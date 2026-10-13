@@ -20,7 +20,7 @@ class FakeEmbedder:
  def query(self,text,scope='files',picture=False):
   if not self.online:raise EmbedError('offline',offline=True)
   return (self._vec(text),self._vec(text)) if picture else self._vec(text)
- def documents(self,pairs):return np.array([self._vec(t) for _,t in pairs])
+ def documents(self,pairs,quick=False):return np.array([self._vec(t) for _,t in pairs])
  def image(self,data):return None
  def audio(self,data):return None
 
@@ -234,6 +234,12 @@ class SearchTests(unittest.TestCase):
  def test_asking_for_a_kind_puts_it_first(self):
   self.assertEqual(search.parse('foto da praia'),('files','foto da praia'))
   self.assertEqual({m for m,ws in search.WANTS.items() if set(search.content_words('foto da praia'))&ws},{'i'})
+ def test_apps_by_meaning(self):
+  apps=[('chess.desktop','Chess Overlay','Chess Overlay · Setas sobre o tabuleiro de xadrez'),('calc.desktop','Calc','Calc · planilha')]
+  apps+=[(f'a{i}.desktop',f'App {i}',f'App {i} · ferramenta numero {i}') for i in range(20)]
+  self.searcher.search('tabuleiro de xadrez')
+  self.assertEqual(self.searcher.app_hits(apps)[0][0],'chess.desktop')
+  self.assertTrue(any(k.startswith('app:') for k, in self.store.db.execute('select key from meta')))  # vectors kept
  def test_code_prefix(self):self.assertEqual(search.parse('code: retry backoff'),('code','retry backoff'))
 
 class EmbedderTests(unittest.TestCase):

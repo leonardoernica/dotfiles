@@ -105,6 +105,9 @@ Como funciona:
   depois dos 3 primeiros documentos). Um vídeo com 40 frames tem 40 chances de parecer
   relevante por acaso e recebe um desconto por isso. Para imagens a busca é feita como
   legenda ("uma foto de mochila");
+- **Aplicativos pelo significado:** nome, descrição e categorias de cada app passam pelo
+  mesmo modelo, então "xadrez" acha o En Croissant e o Chess Overlay e "planilha" acha o
+  LibreOffice Calc. Os vetores dos apps ficam no índice; um app novo é lido uma vez;
 - **Pedir o tipo:** "foto…", "print…", "vídeo…", "música…" põem esse tipo primeiro;
 - **Índice limpo:** JSON, logs, código colado em `.txt` e OCR de baixa confiança
   (palavras do tesseract abaixo de 60%) continuam achados por palavra exata, mas não
@@ -112,7 +115,7 @@ Como funciona:
 - **Medido:** `garimpo eval -v` mostra onde o arquivo esperado caiu em buscas conhecidas:
   as de `~/.local/state/garimpo/eval.json` e, automaticamente, cada busca feita na paleta
   junto com o arquivo aberto (`searches.jsonl`, só local). Nas 43 buscas desta máquina o
-  certo veio em 1º em 37 e entre os 5 primeiros em 42 (o ranking antigo: 1 de 30);
+  certo veio em 1º em 40 de 46 e entre os 5 primeiros em 45 (o ranking antigo: 1 de 30);
 - **Índice:** um único SQLite em `~/.local/state/garimpo/index.db` com vetores
   float16 e FTS5 para palavras exatas (números de nota, códigos de erro, nomes);
 - **Privacidade:** somente leitura e sem rede além do download inicial; ignora pastas

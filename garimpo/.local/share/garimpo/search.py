@@ -27,6 +27,9 @@ MEDIA_AFTER = 3    # weaker pictures still show up after at most this many docum
 WANTS = {"i": {"foto", "fotos", "imagem", "imagens", "print", "prints", "captura", "screenshot", "selfie", "figura", "desenho", "logo", "photo", "picture"},
          "v": {"video", "videos", "filmagem", "gravacao", "clipe"},
          "a": {"musica", "musicas", "audio", "audios", "som", "cancao", "beat", "podcast", "song"}}
+APP_Z = 3.0        # applications by meaning: "xadrez" finds Chess Overlay, "planilha" LibreOffice Calc
+APP_LIMIT = 3
+FOLDER_Z = 1.5     # query words in the folder names: preview.png inside chess-overlay/ is about chess
 MIN_SPREAD = 0.02  # tiny collections: keep z-scores finite
 
 # Hubs: some chunks (long books, busy screenshots, short sound clips, video frames) are close to
@@ -97,6 +100,7 @@ class Searcher:
   self.store, self.embedder, self.cfg = store, embedder, cfg
   self.semantic_error = None
   self._hub = self._pos = (None, None)
+  self._qv, self._apps = None, {}
   self._pool = 0
 
  # ── hubness correction ──
@@ -157,6 +161,7 @@ class Searcher:
    else: qv = pv = self.embedder.query(query, scope)
    self.semantic_error = None
   except EmbedError as e: self.semantic_error = str(e); return {}, {}
+  self._qv = qv
   if mat.shape[1] != len(qv): return {}, {}
   sims = mat @ qv
   if pictures.any(): sims[pictures] = mat[pictures] @ pv
@@ -198,7 +203,7 @@ class Searcher:
   """(scope, results) in display order; r["media"] marks pictures/video/sound, r["copies"] identical files."""
   scope, text = parse(query)
   if not text: return scope, []
-  self._z, self._pool = (lambda cid: None), 0
+  self._z, self._pool, self._qv = (lambda cid: None), 0, None
   zs, media = self._semantic(scope, text) if semantic else ({}, {})
   min_z = NOISE_FRACTION * np.sqrt(2 * np.log(max(self._pool, 2)))
   keyword, kind = self._keyword(text, scope)
@@ -222,6 +227,8 @@ class Searcher:
    name = set(words(os.path.basename(c["path"])))
    if qwords and qwords <= name: score += NAME_Z
    elif qwords & name: score += NAME_Z * len(qwords & name) / len(qwords) / 2
+   folders = set(words(" ".join(c["path"].split("/")[-4:-1])))
+   if qwords & folders - name: score += FOLDER_Z * len(qwords & folders - name) / len(qwords)
    prev = docs.get(c["file_id"])
    if not prev or score > prev["score"]:
     docs[c["file_id"]] = dict(c, score=score, snippet=snippet(c["text"], text) if c["loc"] is not None else "")
@@ -241,6 +248,33 @@ class Searcher:
   # Otherwise media go where their confidence puts them, but never below the first few documents.
   at = min(sum(r["score"] > shown[0]["score"] for r in ranked), MEDIA_AFTER) if shown else 0
   return scope, ranked[:at] + shown + ranked[at:]
+
+ # ── applications ──
+ def app_hits(self, apps, query=None):
+  """apps: [(app_id, name, text)] -> [(app_id, z)] for apps that match the last query by meaning.
+  App vectors are computed once on the query server and kept in the index."""
+  if query is not None and self._qv is None:
+   try: self._qv = self.embedder.query(parse(query)[1])
+   except EmbedError: return []
+  if self._qv is None or not apps: return []
+  key = lambda a: "app:" + hashlib.sha1((self.cfg["model"] + a[1] + a[2]).encode()).hexdigest()[:16]
+  missing = [a for a in apps if key(a) not in self._apps]
+  stored = {a: self.store.get(key(a)) for a in missing}
+  for a, blob in stored.items():
+   if blob: self._apps[key(a)] = np.frombuffer(base64.b64decode(blob), dtype=np.float16).astype(np.float32)
+  todo = [a for a in missing if key(a) not in self._apps]
+  for i in range(0, len(todo), 16):
+   batch = todo[i:i + 16]
+   try: vecs = self.embedder.documents([(name, text) for _, name, text in batch], quick=True)
+   except EmbedError: return []
+   for a, v in zip(batch, vecs):
+    self._apps[key(a)] = v
+    self.store.set(key(a), base64.b64encode(np.asarray(v, np.float16).tobytes()).decode())
+  mat = np.stack([self._apps[key(a)] for a in apps])
+  if mat.shape[1] != len(self._qv): return []
+  z = standout(mat @ self._qv)
+  best = sorted(((float(zi), a[0]) for zi, a in zip(z, apps) if zi >= APP_Z), reverse=True)[:APP_LIMIT]
+  return [(app_id, zi) for zi, app_id in best if zi >= best[0][0] - 1.0]
 
 def media_kind(r):
  return {"image": "i", "video": "v", "audio": "a"}.get(r["kind"])

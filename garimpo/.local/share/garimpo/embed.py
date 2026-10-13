@@ -63,9 +63,10 @@ class Embedder:
   if vecs is None: vecs = self._embed(prompt, timeout=30)
   return (vecs[0], vecs[1]) if picture else vecs[0]
 
- def documents(self, pairs):
-  """pairs: [(title, text)] -> normalized matrix."""
-  return self._embed([DOCUMENT.format(t or "none", x) for t, x in pairs])
+ def documents(self, pairs, quick=False):
+  """pairs: [(title, text)] -> normalized matrix. quick=True uses the query server (never behind indexing)."""
+  url = self.query_url if quick and self.query_url else None
+  return self._embed([DOCUMENT.format(t or "none", x) for t, x in pairs], url=url)
 
  def _media(self, payload, modality):
   if self.marker is None: self._props()

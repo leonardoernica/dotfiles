@@ -113,6 +113,13 @@ class Usage:
   items = sorted(self.data.get(kind, {}).items(), key=lambda kv: -kv[1][1])
   return [k for k, _ in items[:n]]
 
+def app_text(app):
+ """Name, description, keywords and categories: what an app is about, for the meaning-based match."""
+ get = lambda name: getattr(app, name)() if hasattr(app, name) else None
+ parts = [app.get_display_name(), get("get_generic_name"), app.get_description(), " ".join(get("get_keywords") or []),
+          (get("get_categories") or "").replace(";", " ")]
+ return " · ".join(p for p in parts if p)
+
 def app_score(app, query):
  q = search.fold(query)
  name = search.fold(app.get_display_name() or "")
@@ -120,6 +127,7 @@ def app_score(app, query):
  if any(w.startswith(q) for w in name.split()): return 0.85
  if q in name: return 0.7
  extra = search.fold(" ".join(filter(None, [app.get_generic_name() if hasattr(app, "get_generic_name") else "", app.get_executable() or "",
+                                           app.get_description() or "",
                                            " ".join(app.get_keywords() if hasattr(app, "get_keywords") else [])])))
  if len(q) >= 3 and q in extra: return 0.55
  it = iter(name)
@@ -256,6 +264,12 @@ class Palette(Gtk.ApplicationWindow):
   if query != self.query: return
   if final: self.spinner.stop()
   scope, text = search.parse(query)
+  # Applications found by meaning ("xadrez" -> Chess Overlay) join the ones matched by name.
+  shown = {i["app"].get_id() for i in self.fast_items if i["type"] == "app"}
+  for hit in [r for r in results if r.get("type") == "app_hit"]:
+   app = self.app.app_by_id(hit["id"])
+   if app and hit["id"] not in shown: shown.add(hit["id"]); self.fast_items.append(dict(type="app", app=app))
+  results = [r for r in results if r.get("type") != "app_hit"]
   # Files opened often climb a little among documents; pictures keep the place the ranking gave them.
   docs = [r for r in results if not r.get("media")]
   at = next((i for i, r in enumerate(results) if r.get("media")), len(results))
@@ -492,6 +506,9 @@ class Worker:
 
  def submit(self, query, callback):
   with self.cond: self.pending = (query, callback); self.cond.notify()
+ def set_apps(self, apps):
+  """[(app_id, name, text)] read on the GTK thread; matched by meaning in the worker."""
+  self.apps = apps
  def warm(self):
   with self.cond: self.warm_flag = True; self.cond.notify()
 
@@ -504,7 +521,9 @@ class Worker:
     job, self.pending = self.pending, None
     warm, self.warm_flag = self.warm_flag, False
    if warm and not job:
-    try: self.searcher.warm(); self.embedder._props()
+    try:
+     self.searcher.warm(); self.embedder._props()
+     if getattr(self, "apps", None): self.searcher.app_hits(self.apps, "warm up")  # embeds new apps once
     except Exception: pass
     continue
    query, callback = job
@@ -517,6 +536,8 @@ class Worker:
     with self.cond:
      if self.pending: continue
     _, full = self.searcher.search(query)
+    if search.parse(query)[0] == "files" and getattr(self, "apps", None):
+     for app_id, _z in self.searcher.app_hits(self.apps, query): full.append(dict(type="app_hit", id=app_id))
    except Exception as e:
     full = []; print(f"[garimpo] busca falhou: {e!r}")
    GLib.idle_add(callback, query, full, True)
@@ -536,10 +557,13 @@ class App(Adw.Application):
   self.monitor = Gio.AppInfoMonitor.get(); self.monitor.connect("changed", lambda *_: setattr(self, "_apps", None))
   action = Gio.SimpleAction.new("search", GLib.VariantType.new("s"))
   action.connect("activate", lambda _a, text: self.open_with(text.get_string())); self.add_action(action)
+  self.apps(); self.worker.warm()  # app vectors are ready before the first search
   self.hold()  # stay resident so SUPER+D opens instantly
 
  def apps(self):
-  if self._apps is None: self._apps = [a for a in Gio.AppInfo.get_all() if a.should_show()]
+  if self._apps is None:
+   self._apps = [a for a in Gio.AppInfo.get_all() if a.should_show()]
+   self.worker.set_apps([(a.get_id() or "", a.get_display_name() or "", app_text(a)) for a in self._apps])
   return self._apps
  def app_by_id(self, app_id): return next((a for a in self.apps() if a.get_id() == app_id), None)
 
