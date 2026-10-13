@@ -26,6 +26,10 @@ class Store:
     self.db.execute("alter table chunks add column modality text default 't'")
     self.db.execute("update chunks set modality = case (select kind from files where id=file_id) when 'audio' then 'a' else 'i' end "
                     "where coalesce(text,'')='' and loc is not null")
+  if "digest" not in [r[1] for r in self.db.execute("pragma table_info(files)")]:
+   with self.db: self.db.execute("alter table files add column digest text")
+  if "hub" not in [r[1] for r in self.db.execute("pragma table_info(chunks)")]:
+   with self.db: self.db.execute("alter table chunks add column hub real")  # see search.HUB_K
   self.lock = threading.Lock()
   self._matrix = {}  # scope -> (generation, ids, matrix)
 
@@ -59,6 +63,9 @@ class Store:
    self.db.execute("update files set state=? where id=?", (state, file_id))
    if done_pages is not None: self.db.execute("update files set done_pages=? where id=?", (done_pages, file_id))
 
+ def set_digest(self, file_id, digest):
+  with self.db: self.db.execute("update files set digest=? where id=?", (digest, file_id))
+
  def add_chunks(self, file_id, rows, model):
   """rows: [(loc, text, vec_or_None, searchable_text[, modality])] — modality: t(ext), i(mage) or a(udio)"""
   with self.db:
@@ -78,9 +85,17 @@ class Store:
  def set_vectors(self, file_id, pairs, model):
   """Attach vectors to existing chunks and mark the file as embedded by `model`."""
   with self.db:
-   self.db.executemany("update chunks set vec=?, model=? where id=?",
+   self.db.executemany("update chunks set vec=?, model=?, hub=null where id=?",
                        [(np.asarray(v, dtype=np.float16).tobytes(), model, cid) for cid, v in pairs])
    self.db.execute("update files set model=? where id=?", (model, file_id))
+
+ def replace_text(self, file_id, rows, model):
+  """Swap a file's text passages (e.g. redone OCR), keeping its name and picture vectors."""
+  with self.db:
+   ids = [r[0] for r in self.db.execute("select id from chunks where file_id=? and modality='t' and loc is not null", (file_id,))]
+   self.db.executemany("delete from chunks_fts where rowid=?", [(i,) for i in ids])
+   self.db.executemany("delete from chunks where id=?", [(i,) for i in ids])
+  self.add_chunks(file_id, rows, model)
 
  def _delete_chunks(self, file_id):
   ids = [r[0] for r in self.db.execute("select id from chunks where file_id=?", (file_id,))]
@@ -104,15 +119,28 @@ class Store:
   """Cached (chunk_ids, float32 matrix, modalities) for the scope; rebuilt only when the index changes."""
   gen = self.generation()
   cached = self._matrix.get(scope)
-  if cached and cached[0] == gen: return cached[1:]
+  if cached and cached[0] == gen: return cached[1:4]
   with self.lock:
-   rows = self.db.execute("select c.id,c.vec,c.modality from chunks c join files f on f.id=c.file_id "
+   rows = self.db.execute("select c.id,c.vec,c.modality,c.hub from chunks c join files f on f.id=c.file_id "
                           "where f.scope=? and c.vec is not null and c.model=?", (scope, model)).fetchall()
   ids = np.fromiter((r[0] for r in rows), dtype=np.int64, count=len(rows))
   mat = np.frombuffer(b"".join(r[1] for r in rows), dtype=np.float16).reshape(len(rows), -1).astype(np.float32) if rows else np.zeros((0, 1), np.float32)
   mods = np.array([r[2] or "t" for r in rows])
-  self._matrix[scope] = (gen, ids, mat, mods)
+  hubs = np.array([np.nan if r[3] is None else r[3] for r in rows], dtype=np.float32)
+  self._matrix[scope] = (gen, ids, mat, mods, hubs)
   return ids, mat, mods
+
+ def hubs(self, scope):
+  """Stored hub values aligned with the last matrix(scope); NaN where not computed yet."""
+  return self._matrix[scope][4]
+
+ def set_hubs(self, pairs, key):
+  """Persist hub values; `key` names the probes they were computed with (a new key clears old values)."""
+  with self.db:
+   if self.get("hub_key") != key:
+    self.db.execute("update chunks set hub=null")
+    self.db.execute("insert or replace into meta values('hub_key',?)", (key,))
+   self.db.executemany("update chunks set hub=? where id=?", [(float(h), int(c)) for c, h in pairs])
 
  def keyword(self, match, scope, limit=200):
   try:
@@ -122,11 +150,13 @@ class Store:
   except sqlite3.OperationalError: return []
 
  def chunk_info(self, ids):
-  if not len(ids): return {}
+  ids = sorted({int(i) for i in ids})
+  if not ids: return {}
   marks = ",".join("?" * len(ids))
-  rows = self.db.execute(f"select c.id,c.file_id,c.loc,c.text,f.path,f.kind,f.mtime from chunks c join files f on f.id=c.file_id where c.id in ({marks})",
-                         [int(i) for i in ids])
-  return {r[0]: dict(file_id=r[1], loc=r[2], text=r[3] or "", path=r[4], kind=r[5], mtime=r[6]) for r in rows}
+  rows = self.db.execute(f"select c.id,c.file_id,c.loc,c.text,f.path,f.kind,f.mtime,c.vec is not null,f.digest "
+                         f"from chunks c join files f on f.id=c.file_id where c.id in ({marks})", ids)
+  return {r[0]: dict(file_id=r[1], loc=r[2], text=r[3] or "", path=r[4], kind=r[5], mtime=r[6], has_vec=bool(r[7]), digest=r[8])
+          for r in rows}
 
  def stats(self):
   total, done = self.db.execute("select count(*), sum(state in ('done','error','skip')) from files").fetchone()

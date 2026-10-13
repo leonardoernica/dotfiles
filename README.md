@@ -93,14 +93,26 @@ Como funciona:
 - **Leitores:** `pdftotext` página a página (OCR com `tesseract` em páginas
   escaneadas), docx/odt/pptx/xlsx/epub, OCR de capturas, frames de vídeo e janelas de
   30 s de áudio (músicas, gravações e trilhas de vídeo) com `ffmpeg`;
-- **Mídia em seção própria:** imagens, frames de vídeo e áudio aparecem em
-  "Imagens, vídeos e áudio", ranqueados pelo quanto se destacam das demais mídias
-  para a busca; assim "mochila" mostra a foto da mochila mesmo quando há textos com a
-  palavra. Para imagens a busca é feita como legenda ("uma foto de mochila"), o que
-  acertou 12 de 14 buscas de teste contra 7 de 14 no formato de documento;
+- **Ranking:** cada sinal vira "quanto este trecho se destaca do resto *nesta busca*"
+  (z-score por tipo: texto, imagens, som), em vez de um corte fixo de similaridade.
+  Trechos que ficam perto de qualquer busca (livros longos, frames de vídeo, áudios
+  curtos) são descontados pela proximidade média a sondas genéricas (correção de
+  *hubness*, CSLS). Palavras exatas e nome do arquivo desempatam, por palavra
+  inteira; prefixo só se a palavra ainda não existir inteira ("mochi" → mochila, mas
+  "bota" não acha "Botão"). Cópias idênticas viram uma linha ("+2 cópias");
+- **Mídia por confiança:** imagens, frames e áudio entram em "Imagens, vídeos e áudio"
+  quando se destacam das demais mídias, na posição que a confiança indica (no máximo
+  depois dos 3 primeiros documentos). Para imagens a busca é feita como legenda
+  ("uma foto de mochila");
+- **Índice limpo:** JSON, logs, código colado em `.txt` e OCR de baixa confiança
+  (palavras do tesseract abaixo de 60%) continuam achados por palavra exata, mas não
+  recebem vetor — antes apareciam em qualquer busca;
+- **Medido:** `garimpo eval -v` roda buscas conhecidas de `~/.local/state/garimpo/eval.json`
+  (fora do repositório, pois citam arquivos pessoais) e mostra onde o arquivo esperado
+  caiu. Nas 30 buscas desta máquina, o certo veio em 1º em 23 (era 1 com o ranking
+  antigo), entre os 5 primeiros em 29;
 - **Índice:** um único SQLite em `~/.local/state/garimpo/index.db` com vetores
-  float16 e FTS5 para palavras exatas (números de nota, códigos de erro, nomes),
-  que recebem bônus no ranking;
+  float16 e FTS5 para palavras exatas (números de nota, códigos de erro, nomes);
 - **Privacidade:** somente leitura e sem rede além do download inicial; ignora pastas
   ocultas, `~/.ssh`, `secrets/`, chaves, `.env`, senhas, `node_modules`, caches e
   pastas tipo dataset. Dentro de projetos de código só entram imagens, PDFs e documentos;
@@ -135,6 +147,7 @@ O `install.sh` roda o setup e ativa `garimpo-embed.service` e `garimpo-indexer.s
 garimpo search "contrato de aluguel com animais"   # busca no terminal
 garimpo open "code: retry com backoff"             # abre a paleta já pesquisando
 garimpo status                                     # progresso do índice
+garimpo eval -v                                    # qualidade do ranking nas suas buscas
 garimpo pause | garimpo resume
 journalctl --user -u garimpo-indexer -u garimpo-embed -f
 ```

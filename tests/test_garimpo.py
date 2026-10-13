@@ -49,6 +49,19 @@ class ReaderTests(unittest.TestCase):
     import subprocess;subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i',f'sine=frequency=440:duration={secs}',str(p)],check=True)
     self.assertEqual([t for t,_ in readers.audio_windows(p,120)],expect,secs)
  def test_numeric(self):self.assertTrue(readers.mostly_numeric('1,2,3\n4,5,6\n'*50))
+ def test_prose_versus_data(self):
+  self.assertTrue(readers.prose('O inquilino pode manter animais de estimação, desde que avise o proprietário.'))
+  self.assertFalse(readers.prose('{"maquina_nome": "COLADEIRA 2", "id": 33, "turno": "B", "ok": true, "ts": 1748982434}'))
+  self.assertFalse(readers.prose('rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT) clk_drv:0x00,q_drv:0x00,d_drv:0x00'))
+ def test_ocr_keeps_confident_words(self):
+  head='level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n'
+  row=lambda line,conf,word:f'5\t1\t1\t1\t{line}\t1\t0\t0\t9\t9\t{conf}\t{word}\n'
+  tsv=head+row(1,96,'Pagamento')+row(1,91,'recusado')+row(1,12,'~_<ANCA')+row(2,88,'código')+row(2,90,'E4021')
+  done=lambda out:type('R',(),{'stdout':out.encode()})()
+  with patch('shutil.which',return_value='/usr/bin/tesseract'),patch('subprocess.run',return_value=done(tsv)):
+   self.assertEqual(readers.ocr(Path('x.png'),'por'),'Pagamento recusado\ncódigo E4021')
+  with patch('shutil.which',return_value='/usr/bin/tesseract'),patch('subprocess.run',return_value=done(head+row(1,30,'URANCA')+row(1,95,'AGIL'))):
+   self.assertEqual(readers.ocr(Path('logo.png'),'por'),'')  # logos and photos: no text at all
 
 class PrivacyTests(unittest.TestCase):
  def test_sensitive_names(self):
@@ -168,6 +181,40 @@ class SearchTests(unittest.TestCase):
   self.store.add_chunks(fid,[(i*20,'',ortho(),None,'a') for i in range(25)]+[(999,'',target,None,'a')],'fake');self.store.bump()
   hits=[r for r in self.searcher.search('chuva forte')[1] if r['path'].endswith('som.mp3')]
   self.assertEqual(hits[0]['loc'],999)
+ def test_identical_copies_fold_into_one(self):
+  (self.root/'contrato_aluguel (1).md').write_bytes((self.root/'contrato_aluguel.md').read_bytes())
+  with patch.object(config,'STATE',Path(self.tmp.name)):Indexer(self.cfg,self.store,self.emb,log=lambda m:None).cycle()
+  hits=[r for r in self.searcher.search('animais de estimação')[1] if 'contrato_aluguel' in r['path']]
+  self.assertEqual(len(hits),1);self.assertEqual(hits[0]['copies'],1)
+ def test_whole_words_before_prefixes(self):
+  (self.root/'app.txt').write_text('Botão de suporte no rodapé do aplicativo.')
+  (self.root/'loja.txt').write_text('A bota de couro marrom voltou ao estoque.')
+  with patch.object(config,'STATE',Path(self.tmp.name)):Indexer(self.cfg,self.store,self.emb,log=lambda m:None).cycle()
+  self.assertEqual(self.searcher._keyword('bota','files')[0].keys(),{c for c,_ in self.store.keyword('"bota"','files')})
+  self.assertNotIn('app.txt',search.Searcher(self.store,FakeEmbedder(online=False),self.cfg).search('bota')[1][0]['path'])
+  self.assertEqual(self.searcher._keyword('cenou','files')[1],'prefix')  # unfinished word: prefix as a fallback
+ def test_upgrade_drops_vectors_of_data_chunks(self):
+  (self.root/'dump.txt').write_text('{"maquina_nome": "COLADEIRA 2", "id": 33, "turno": "B", "ok": true, "ts": 1748982434}')
+  self.store.set('quality',99)
+  with patch.object(config,'STATE',Path(self.tmp.name)):Indexer(self.cfg,self.store,self.emb,log=lambda m:None).cycle()
+  vec=lambda:self.store.db.execute("select c.vec from chunks c join files f on f.id=c.file_id where f.path like '%dump.txt' and c.loc is not null").fetchone()[0]
+  self.assertIsNone(vec())  # new files: data gets no vector
+  fid=self.store.file(self.root/'dump.txt')[0]
+  self.store.db.execute("update chunks set vec=?, model='fake' where file_id=? and loc is not null",(np.ones(64,np.float16).tobytes(),fid));self.store.db.commit()
+  self.store.set('quality',0)
+  with patch.object(config,'STATE',Path(self.tmp.name)):Indexer(self.cfg,self.store,self.emb,log=lambda m:None).cycle()
+  self.assertIsNone(vec());self.assertTrue(all(d for d, in self.store.db.execute('select digest from files')))
+  self.assertEqual(self.names('COLADEIRA')[0],'dump.txt')  # still found by its words
+ def test_upgrade_redoes_ocr_of_screenshots(self):
+  from PIL import Image
+  Image.new('RGB',(40,40),'white').save(self.root/'captura.png')
+  idx=Indexer(dict(self.cfg,ocr=True),self.store,self.emb,log=lambda m:None);idx.langs='por'
+  with patch.object(config,'STATE',Path(self.tmp.name)),patch('readers.ocr',return_value='URANCA ~_<ANCA AGILIDADE CUID texto ruim'):idx.cycle()
+  self.store.set('quality',0)
+  with patch.object(config,'STATE',Path(self.tmp.name)),patch('readers.ocr',return_value='Pagamento recusado pelo banco emissor'):idx.cycle()
+  fid=self.store.file(self.root/'captura.png')[0]
+  self.assertEqual([t for _,l,t in self.store.chunks_of(fid) if l is not None],['Pagamento recusado pelo banco emissor'])
+  self.assertEqual(self.names('banco emissor')[0],'captura.png')
  def test_code_prefix(self):self.assertEqual(search.parse('code: retry backoff'),('code','retry backoff'))
 
 class EmbedderTests(unittest.TestCase):

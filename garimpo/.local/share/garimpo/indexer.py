@@ -19,12 +19,17 @@ DOCUMENT_KINDS = {"image", "pdf", "office"}
 NAMED_OTHER = {".zip", ".rar", ".7z", ".tar", ".gz", ".xz", ".apk", ".iso", ".deb", ".exe", ".svg", ".psd", ".xcf", ".fig",
                ".riv", ".blend", ".doc", ".xls", ".ppt", ".mobi", ".djvu", ".sqlite", ".db", ".ttf", ".otf", ".ai", ".sketch"}
 DATA_EXTS = {".xlsx", ".ods", ".csv", ".tsv"}  # tables are data: exact words only, like DigUp's numeric text
+QUALITY = 1  # bump to clean an existing index: vectors only for prose, confident OCR, content fingerprints
 # Cheap and high-value first: names, then pictures (~1-2 s each), then documents, then sound and video.
 PRIORITY = {"other": 0, "image": 1, "text": 2, "office": 2, "code": 2, "pdf": 2, "audio": 3, "video": 3}
 
 def sensitive(name, extra=()):
  low = name.lower()
  return any(fnmatch.fnmatch(low, p) for p in [*SENSITIVE, *extra])
+
+def embeddable(text):
+ """Worth a vector? Numbers, data dumps, logs and OCR noise are found by exact words only."""
+ return not readers.mostly_numeric(text) and readers.prose(text)
 
 def git_files(repo):
  """Tracked and untracked-but-not-ignored files of a repository (respects .gitignore)."""
@@ -160,7 +165,7 @@ class Indexer:
   """pieces: [(loc, text)] -> rows ready for Store.add_chunks."""
   rows, todo = [], []
   for loc, text in pieces:
-   if use_vectors and (limit is None or len(todo) < limit) and not readers.mostly_numeric(text): todo.append((loc, text))
+   if use_vectors and (limit is None or len(todo) < limit) and embeddable(text): todo.append((loc, text))
    else: rows.append((loc, text, None, text))
   for i in range(0, len(todo), 16):
    self.drain()
@@ -173,6 +178,7 @@ class Indexer:
   st = path.stat()
   model = self.cfg["model"] if use_vectors else ""
   fid = self.store.upsert_file(path, st.st_mtime, st.st_size, k, scope, "indexing", model)
+  self.store.set_digest(fid, readers.digest(path))
   label = readers.name_text(path)
   fts_name = f"{path.name} {re.sub(r'[_.-]+', ' ', path.stem)} {path.parent.name}"
   name_vec = self.embedder.documents([(path.name, f"{label} ({path.parent.name})")])[0] if use_vectors and label else None
@@ -191,13 +197,37 @@ class Indexer:
    if pages > last and last < self.cfg["pdf_max_pages"]: state = "partial"
   elif k == "image" and st.st_size <= MAX_IMAGE:
    rows = self.media_rows(path, k) if use_vectors else []
-   if self.langs and readers.wants_ocr(path):
-    text = readers.ocr(path, self.langs)
-    if len(text) >= 20: rows += self._embed_rows(path.name, [(0, t) for _, t in readers.chunks(text)], use_vectors)
-   self.store.add_chunks(fid, rows, model)
+   self.store.add_chunks(fid, rows + self.ocr_rows(path, use_vectors), model)
   elif k in ("video", "audio") and use_vectors:
    self.store.add_chunks(fid, self.media_rows(path, k), model)
   self.store.set_state(fid, state, done_pages)
+
+ def ocr_rows(self, path, use_vectors):
+  if not (self.langs and readers.wants_ocr(path)): return []
+  text = readers.ocr(path, self.langs)
+  return self._embed_rows(path.name, [(0, t) for _, t in readers.chunks(text)], use_vectors) if len(text) >= 20 else []
+
+ def upgrade(self):
+  """One-off cleanup of an index built by an older version (see QUALITY)."""
+  if int(self.store.get("quality") or 0) >= QUALITY: return
+  db = self.store.db
+  self.log("[garimpo] limpando o índice: vetores só para texto corrido, OCR confiável, impressões digitais")
+  noisy = [cid for cid, text in db.execute("select id,text from chunks where modality='t' and loc is not null and vec is not null")
+           if not embeddable(text or "")]
+  with db: db.executemany("update chunks set vec=null, model=null where id=?", [(c,) for c in noisy])
+  for fid, key in db.execute("select id,path from files where digest is null").fetchall():
+   try: self.store.set_digest(fid, readers.digest(Path(key)))
+   except OSError: pass
+  if self.langs:
+   scanned = db.execute("select distinct f.id,f.path,f.model from files f join chunks c on c.file_id=f.id "
+                        "where f.kind='image' and c.modality='t' and c.loc is not null").fetchall()
+   for fid, key, model in scanned:
+    self.drain()
+    try: rows = self.ocr_rows(Path(key), bool(model))
+    except Exception as e: self.log(f"[garimpo] erro em {key}: {e!r}"); continue
+    self.store.replace_text(fid, rows, model)
+  self.store.set("quality", QUALITY); self._bump(force=True)
+  self.log(f"[garimpo] {len(noisy)} trechos de dados/ruído agora só por palavra exata")
 
  def media_rows(self, path, k):
   """Image, video-frame and sound vectors in the shared text/image/audio space."""
@@ -225,7 +255,7 @@ class Indexer:
   for cid, loc, text in self.store.chunks_of(fid):
    if data and loc is not None: continue
    if loc is None and label: todo.append((cid, f"{label} ({path.parent.name})"))
-   elif loc is not None and text and not readers.mostly_numeric(text) and (k == "pdf" or len(todo) <= MAX_VECTOR_CHUNKS): todo.append((cid, text))
+   elif loc is not None and text and embeddable(text) and (k == "pdf" or len(todo) <= MAX_VECTOR_CHUNKS): todo.append((cid, text))
   pairs = []
   for i in range(0, len(todo), 16):
    self.drain()
@@ -252,6 +282,7 @@ class Indexer:
  def cycle(self):
   """One full pass: remove deleted files, index new/changed ones, then continue long PDFs."""
   use_vectors = self.use_vectors = self.online()
+  if use_vectors: self.upgrade()
   known = self.store.files()
   found, todo = set(), []
   for path, scope, k in walk(self.cfg):

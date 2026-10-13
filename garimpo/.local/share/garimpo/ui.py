@@ -41,6 +41,7 @@ KIND_ICON = {"pdf": "application-pdf", "image": "image-x-generic", "video": "vid
              "text": "text-x-generic", "office": "x-office-document", "code": "text-x-script", "other": "text-x-generic"}
 KIND_LABEL = {"pdf": "PDF", "image": "Imagem", "video": "Vídeo", "audio": "Áudio", "text": "Texto", "office": "Documento",
               "code": "Código", "other": "Arquivo"}
+FILE_BOOST = 8  # usage boost (log of opens) to ranking z units: five recent opens ≈ +0.9
 BROWSERS = ("chrome", "chromium", "brave", "firefox", "vivaldi", "edge", "zen")
 
 def esc(text): return GLib.markup_escape_text(text or "")
@@ -235,10 +236,13 @@ class Palette(Gtk.ApplicationWindow):
   if query != self.query: return
   if final: self.spinner.stop()
   scope, text = search.parse(query)
-  items = []
-  for r in results:
-   r["score"] += self.app.usage.boost("files", r["path"])
-  for r in sorted(results, key=lambda r: -r["score"]): items.append(dict(r, type="file", scope=scope))
+  # Files opened often climb a little among documents; pictures keep the place the ranking gave them.
+  docs = [r for r in results if not r.get("media")]
+  at = next((i for i, r in enumerate(results) if r.get("media")), len(results))
+  for r in docs: r["score"] += FILE_BOOST * self.app.usage.boost("files", r["path"])
+  docs.sort(key=lambda r: -r["score"])
+  ordered = docs[:at] + [r for r in results if r.get("media")] + docs[at:]
+  items = [dict(r, type="file", scope=scope) for r in ordered]
   if final and scope == "files": items.append(dict(type="web", text=text))
   self.render(self.fast_items, items)
 
@@ -253,12 +257,18 @@ class Palette(Gtk.ApplicationWindow):
   while child := self.list.get_first_child(): self.list.remove(child)
   self.items = []
   apps = [i for i in quick if i["type"] == "app"]; calc = [i for i in quick if i["type"] == "calc"]
-  media = [i for i in files if i["type"] == "file" and i.get("media")]
-  file_items = [i for i in files if i["type"] == "file" and not i.get("media")]; web = [i for i in files if i["type"] == "web"]
-  if (file_items or media) and len(apps) > 3: apps = apps[:3]
+  found = [i for i in files if i["type"] == "file"]; web = [i for i in files if i["type"] == "web"]
+  if found and len(apps) > 3: apps = apps[:3]
   scope = search.parse(self.query)[0]
-  groups = [("CALCULADORA", calc), ("RECENTES" if empty else "APLICATIVOS", apps), ("IMAGENS, VÍDEOS E ÁUDIO", media),
-            ("ARQUIVOS RECENTES" if empty else ("CÓDIGO" if scope == "code" else "ARQUIVOS"), file_items), ("WEB", web)]
+  label = "ARQUIVOS RECENTES" if empty else ("CÓDIGO" if scope == "code" else "ARQUIVOS")
+  groups = [("CALCULADORA", calc), ("RECENTES" if empty else "APLICATIVOS", apps)]
+  for item in found:  # runs in ranking order: documents, standout pictures, then the remaining documents
+   title = "IMAGENS, VÍDEOS E ÁUDIO" if item.get("media") else label
+   if item.get("media") or not any(t == label for t, _ in groups[2:]) or groups[-1][0] == label: pass
+   else: title = "MAIS " + label
+   if groups[-1][0] == title: groups[-1][1].append(item)
+   else: groups.append((title, [item]))
+  groups.append(("WEB", web))
   for title, group in groups:
    if not group: continue
    header = Gtk.ListBoxRow(selectable=False, activatable=False, css_classes=["section"])
@@ -313,7 +323,9 @@ class Palette(Gtk.ApplicationWindow):
    icon.set_from_gicon(self.file_icon(path)); box.append(icon)
    if item["kind"] == "image": self.load_thumb(path, icon)
    text.append(Gtk.Label(label=os.path.basename(path), xalign=0, css_classes=["title"], ellipsize=Pango.EllipsizeMode.MIDDLE))
-   where = " · ".join(filter(None, [search.location(item), search.home(os.path.dirname(path))]))
+   copies = item.get("copies")
+   where = " · ".join(filter(None, [search.location(item), search.home(os.path.dirname(path)),
+                                    copies and (f"+{copies} cópia idêntica" if copies == 1 else f"+{copies} cópias idênticas")]))
    text.append(Gtk.Label(label=where, xalign=0, css_classes=["subtitle"], ellipsize=Pango.EllipsizeMode.MIDDLE))
    if item.get("snippet"):
     text.append(Gtk.Label(use_markup=True, label=highlight(item["snippet"], search.parse(self.query)[1]), xalign=0, css_classes=["snippet"],
@@ -466,7 +478,7 @@ class Worker:
     job, self.pending = self.pending, None
     warm, self.warm_flag = self.warm_flag, False
    if warm and not job:
-    try: self.store.matrix("files", self.cfg["model"]); self.embedder.query("warm up"); self.embedder._props()
+    try: self.searcher.warm(); self.embedder._props()
     except Exception: pass
     continue
    query, callback = job

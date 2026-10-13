@@ -1,5 +1,5 @@
 """Turn files into searchable pieces: (location, text) chunks, image bytes and video frames."""
-import html, io, json, re, shutil, subprocess, zipfile
+import hashlib, html, io, json, re, shutil, subprocess, zipfile
 from pathlib import Path
 
 TEXT = {".txt", ".md", ".markdown", ".rst", ".org", ".tex", ".log", ".html", ".htm", ".xml", ".csv", ".tsv", ".srt", ".vtt"}
@@ -26,9 +26,25 @@ def name_text(path):
  if letters < 3 or re.fullmatch(r"[0-9a-f ]{8,}", stem.lower()): return ""
  return stem
 
+def digest(path, block=1 << 20):
+ """Content fingerprint (size + first and last MiB): copies like 'x (1).pdf' show up once in results."""
+ h = hashlib.sha1()
+ with open(path, "rb") as f:
+  size = f.seek(0, 2); h.update(str(size).encode())
+  f.seek(0); h.update(f.read(block))
+  if size > 2 * block: f.seek(-block, 2); h.update(f.read(block))
+ return h.hexdigest()
+
 def mostly_numeric(text):
  sample = text[:4000]
  return bool(sample) and sum(ch.isdigit() for ch in sample) / len(sample) > 0.35
+
+def prose(text):
+ """Reads like sentences? JSON dumps, logs, pasted code and OCR noise do not: measured on this index,
+ under 40% of their tokens are plain words, against 50-95% in documents, subtitles and notes.
+ Such chunks stay searchable by exact words but get no vector (they matched every search)."""
+ tokens = re.findall(r"\S+", text[:2000])
+ return len(tokens) < 4 or sum(bool(re.fullmatch(r"[^\W\d_]{2,}[,.;:!?)]?", t)) for t in tokens) / len(tokens) >= 0.4
 
 def chunks(text, size=900, start_line=1):
  """Paragraph-aware chunks of about `size` chars, each tagged with its first line number."""
@@ -91,13 +107,23 @@ def pdf_pages(path):
  m = re.search(r"Pages:\s+(\d+)", run("pdfinfo", str(path), timeout=30))
  return int(m.group(1)) if m else 0
 
+OCR_CONFIDENCE = 60  # tesseract's per-word confidence (0-100); below it words are mostly misreadings
+
 def ocr(image_path_or_bytes, langs):
+ """Text tesseract is confident about, line by line; '' for logos, photos and other noise."""
  if not shutil.which("tesseract"): return ""
- if isinstance(image_path_or_bytes, bytes):
-  r = subprocess.run(["tesseract", "-", "-", "-l", langs], input=image_path_or_bytes, capture_output=True, timeout=120)
-  text = r.stdout.decode(errors="replace")
- else: text = run("tesseract", str(image_path_or_bytes), "-", "-l", langs)
- return re.sub(r"[ \t]+", " ", text).strip()
+ source = "-" if isinstance(image_path_or_bytes, bytes) else str(image_path_or_bytes)
+ r = subprocess.run(["tesseract", source, "-", "-l", langs, "tsv"], capture_output=True, timeout=120,
+                    input=image_path_or_bytes if source == "-" else None)
+ lines, kept = {}, 0
+ for row in r.stdout.decode(errors="replace").splitlines()[1:]:
+  cols = row.split("\t")
+  if len(cols) < 12 or not cols[11].strip(): continue
+  try: conf = float(cols[10])
+  except ValueError: continue
+  if conf < OCR_CONFIDENCE: continue
+  lines.setdefault(tuple(cols[1:5]), []).append(cols[11].strip()); kept += 1
+ return "\n".join(" ".join(words) for words in lines.values()) if kept >= 4 else ""
 
 def read_pdf(path, first, last, langs=None, ocr_budget=6):
  """Chunks for pages first..last (1-based, inclusive). Scanned pages are OCRed within a budget."""
