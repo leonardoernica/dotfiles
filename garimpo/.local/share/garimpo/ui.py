@@ -101,6 +101,14 @@ class Usage:
  def boost(self, kind, key):
   count, last = self.data.get(kind, {}).get(key, (0, 0))
   return 0.06 * math.log1p(count) * (1.0 if time.time() - last < 14 * 86400 else 0.5)
+ def log_open(self, query, path, rank):
+  """What was searched and what was opened (and at which position): the real test set for garimpo eval.
+  Stays in ~/.local/state/garimpo, like the index."""
+  if not query.strip(): return
+  try:
+   with open(config.STATE / "searches.jsonl", "a") as f:
+    f.write(json.dumps(dict(q=query.strip(), path=path, rank=rank, at=int(time.time())), ensure_ascii=False) + "\n")
+  except OSError: pass
  def recent(self, kind, n):
   items = sorted(self.data.get(kind, {}).items(), key=lambda kv: -kv[1][1])
   return [k for k, _ in items[:n]]
@@ -133,8 +141,10 @@ class Palette(Gtk.ApplicationWindow):
   self.spinner = Gtk.Spinner(); top.append(self.spinner)
   shell.append(top); shell.append(Gtk.Box(css_classes=["divider"]))
   body = Gtk.Box(vexpand=True)
-  self.list = Gtk.ListBox(css_classes=["results"], selection_mode=Gtk.SelectionMode.SINGLE, activate_on_single_click=True)
+  # One click selects and previews (like Tab), a double click opens.
+  self.list = Gtk.ListBox(css_classes=["results"], selection_mode=Gtk.SelectionMode.SINGLE, activate_on_single_click=False)
   self.list.connect("row-activated", lambda _l, row: self.open_item(row.item))
+  click = Gtk.GestureClick(); click.connect("released", self.on_click); self.list.add_controller(click)
   self.list.connect("row-selected", lambda *_: self.update_preview())
   self.scroll = Gtk.ScrolledWindow(child=self.list, hexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER, width_request=470)
   body.append(self.scroll)
@@ -147,7 +157,7 @@ class Palette(Gtk.ApplicationWindow):
   self.revealer = Gtk.Revealer(child=self.preview, transition_type=Gtk.RevealerTransitionType.SLIDE_LEFT, transition_duration=140)
   body.append(self.revealer); shell.append(body); shell.append(Gtk.Box(css_classes=["divider"]))
   foot = Gtk.Box(css_classes=["footer"], spacing=12)
-  hints = "<b>↵</b> abrir   <b>Ctrl+↵</b> mostrar na pasta   <b>Ctrl+C</b> copiar   <b>Tab</b> prévia   <b>Esc</b> fechar"
+  hints = "<b>↵</b> abrir   <b>Ctrl+↵</b> mostrar na pasta   <b>Ctrl+C</b> copiar   <b>Tab</b>/clique prévia   <b>Esc</b> fechar"
   foot.append(Gtk.Label(use_markup=True, label=hints, xalign=0, hexpand=True))
   self.status = Gtk.Label(xalign=1, ellipsize=Pango.EllipsizeMode.MIDDLE, max_width_chars=42); foot.append(self.status)
   shell.append(foot)
@@ -173,6 +183,10 @@ class Palette(Gtk.ApplicationWindow):
   st = self.app.index_status()
   self.status.set_markup(esc(st)); return True
 
+ def on_click(self, _gesture, n_press, _x, _y):
+  if n_press == 1 and not self.preview_on: self.toggle_preview()
+  self.entry.grab_focus_without_selecting()  # keep typing into the search box
+
  # keyboard
  def on_key(self, _ctrl, key, _code, mods):
   ctrl = bool(mods & Gdk.ModifierType.CONTROL_MASK)
@@ -185,7 +199,13 @@ class Palette(Gtk.ApplicationWindow):
   if key in (Gdk.KEY_Up, Gdk.KEY_KP_Up) or (ctrl and key in (Gdk.KEY_p, Gdk.KEY_k)): self.move(-1); return True
   if key == Gdk.KEY_Page_Down: self.move(6); return True
   if key == Gdk.KEY_Page_Up: self.move(-6); return True
-  if key in (Gdk.KEY_Return, Gdk.KEY_KP_Enter): self.open_selected(reveal=ctrl); return True
+  if key in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+   # Typed and hit Enter before the meaning-based results arrived: open the first final result instead
+   # of whatever the quick exact-word pass happened to show.
+   rows = self.selectable_rows()
+   if self.spinner.get_spinning() and (not rows or self.list.get_selected_row() is rows[0]) and not ctrl:
+    self.open_when_final = True; return True
+   self.open_selected(reveal=ctrl); return True
   if key in (Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab): self.toggle_preview(); return True
   if ctrl and key in (Gdk.KEY_c, Gdk.KEY_C) and not self.entry.get_selection_bounds(): self.copy_selected(); return True
   return False
@@ -214,7 +234,7 @@ class Palette(Gtk.ApplicationWindow):
 
  # searching
  def on_changed(self, entry):
-  self.query = entry.get_text()
+  self.query = entry.get_text(); self.open_when_final = False
   scope, text = search.parse(self.query)
   self.scope_chip.set_visible(scope == "code")
   if not self.query.strip(): self.render_empty(); return
@@ -245,6 +265,7 @@ class Palette(Gtk.ApplicationWindow):
   items = [dict(r, type="file", scope=scope) for r in ordered]
   if final and scope == "files": items.append(dict(type="web", text=text))
   self.render(self.fast_items, items)
+  if final and getattr(self, "open_when_final", False): self.open_when_final = False; self.open_selected()
 
  def render_empty(self):
   self.fast_items = []
@@ -402,9 +423,14 @@ class Palette(Gtk.ApplicationWindow):
     Gio.AppInfo.launch_default_for_uri("https://www.google.com/search?q=" + GLib.Uri.escape_string(item["text"], None, False), None)
    elif reveal: reveal_file(item["path"])
    else:
-    self.app.usage.bump("files", item["path"]); open_file(item, self.cfg)
+    self.app.usage.bump("files", item["path"]); self.app.usage.log_open(self.query, item["path"], self.rank_of(item))
+    open_file(item, self.cfg)
   except GLib.Error as e: self.status.set_text(f"Falha ao abrir: {e.message}"); return
   self.dismiss()
+
+ def rank_of(self, item):
+  files = [r.item for r in self.selectable_rows() if r.item.get("type") == "file"]
+  return next((i for i, f in enumerate(files, 1) if f is item), 0)
 
  def copy_text(self, text): self.get_clipboard().set(text)
 

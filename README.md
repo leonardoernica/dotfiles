@@ -102,15 +102,17 @@ Como funciona:
   "bota" não acha "Botão"). Cópias idênticas viram uma linha ("+2 cópias");
 - **Mídia por confiança:** imagens, frames e áudio entram em "Imagens, vídeos e áudio"
   quando se destacam das demais mídias, na posição que a confiança indica (no máximo
-  depois dos 3 primeiros documentos). Para imagens a busca é feita como legenda
-  ("uma foto de mochila");
+  depois dos 3 primeiros documentos). Um vídeo com 40 frames tem 40 chances de parecer
+  relevante por acaso e recebe um desconto por isso. Para imagens a busca é feita como
+  legenda ("uma foto de mochila");
+- **Pedir o tipo:** "foto…", "print…", "vídeo…", "música…" põem esse tipo primeiro;
 - **Índice limpo:** JSON, logs, código colado em `.txt` e OCR de baixa confiança
   (palavras do tesseract abaixo de 60%) continuam achados por palavra exata, mas não
   recebem vetor — antes apareciam em qualquer busca;
-- **Medido:** `garimpo eval -v` roda buscas conhecidas de `~/.local/state/garimpo/eval.json`
-  (fora do repositório, pois citam arquivos pessoais) e mostra onde o arquivo esperado
-  caiu. Nas 30 buscas desta máquina, o certo veio em 1º em 23 (era 1 com o ranking
-  antigo), entre os 5 primeiros em 29;
+- **Medido:** `garimpo eval -v` mostra onde o arquivo esperado caiu em buscas conhecidas:
+  as de `~/.local/state/garimpo/eval.json` e, automaticamente, cada busca feita na paleta
+  junto com o arquivo aberto (`searches.jsonl`, só local). Nas 43 buscas desta máquina o
+  certo veio em 1º em 37 e entre os 5 primeiros em 42 (o ranking antigo: 1 de 30);
 - **Índice:** um único SQLite em `~/.local/state/garimpo/index.db` com vetores
   float16 e FTS5 para palavras exatas (números de nota, códigos de erro, nomes);
 - **Privacidade:** somente leitura e sem rede além do download inicial; ignora pastas
@@ -125,7 +127,8 @@ Como funciona:
 |---|---|
 | SUPER+D | abrir/fechar |
 | ↑ ↓, Ctrl+J/K | navegar |
-| Enter | abrir (PDF na página, vídeo no segundo, código na linha) |
+| Enter, duplo clique | abrir (PDF na página, vídeo no segundo, código na linha) |
+| clique | selecionar e abrir a prévia |
 | Ctrl+Enter | mostrar na pasta (Dolphin) |
 | Ctrl+C | copiar o arquivo (ou o resultado da conta) |
 | Tab | prévia: imagem, página do PDF ou frame do vídeo |

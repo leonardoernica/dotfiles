@@ -177,8 +177,11 @@ class SearchTests(unittest.TestCase):
   def ortho():
    v=rng.normal(size=64);v-=(v@q)*q;return v/np.linalg.norm(v)
   target=0.3*q+np.sqrt(1-0.09)*ortho()  # raw similarity 0.3: far below the text threshold
+  for i in range(25):
+   other=self.store.upsert_file(self.root/f'outro{i}.mp3',0,0,'audio','files','done','fake')
+   self.store.add_chunks(other,[(0,'',ortho(),None,'a')],'fake')
   fid=self.store.upsert_file(self.root/'som.mp3',0,0,'audio','files','done','fake')
-  self.store.add_chunks(fid,[(i*20,'',ortho(),None,'a') for i in range(25)]+[(999,'',target,None,'a')],'fake');self.store.bump()
+  self.store.add_chunks(fid,[(999,'',target,None,'a')],'fake');self.store.bump()
   hits=[r for r in self.searcher.search('chuva forte')[1] if r['path'].endswith('som.mp3')]
   self.assertEqual(hits[0]['loc'],999)
  def test_identical_copies_fold_into_one(self):
@@ -215,6 +218,22 @@ class SearchTests(unittest.TestCase):
   fid=self.store.file(self.root/'captura.png')[0]
   self.assertEqual([t for _,l,t in self.store.chunks_of(fid) if l is not None],['Pagamento recusado pelo banco emissor'])
   self.assertEqual(self.names('banco emissor')[0],'captura.png')
+ def test_long_media_do_not_win_by_chance(self):
+  q=self.emb.query('chuva forte');rng=np.random.default_rng(1)
+  def near(sim):
+   v=rng.normal(size=64);v-=(v@q)*q;v/=np.linalg.norm(v);return sim*q+np.sqrt(1-sim*sim)*v
+  for i in range(30):
+   other=self.store.upsert_file(self.root/f'foto{i}.jpg',0,0,'image','files','done','fake')
+   self.store.add_chunks(other,[(0,'',near(0.0),None,'i')],'fake')
+  photo=self.store.upsert_file(self.root/'chuva.jpg',0,0,'image','files','done','fake')
+  self.store.add_chunks(photo,[(0,'',near(0.25),None,'i')],'fake')
+  video=self.store.upsert_file(self.root/'filme.mp4',0,0,'video','files','done','fake')
+  self.store.add_chunks(video,[(s,'',near(0.27 if s==0 else 0.0),None,'i') for s in range(0,160,4)],'fake');self.store.bump()
+  media=[os.path.basename(r['path']) for r in self.searcher.search('chuva forte')[1] if r.get('media')]
+  self.assertEqual(media[0],'chuva.jpg')  # one strong frame out of 40 counts less than one strong photo
+ def test_asking_for_a_kind_puts_it_first(self):
+  self.assertEqual(search.parse('foto da praia'),('files','foto da praia'))
+  self.assertEqual({m for m,ws in search.WANTS.items() if set(search.content_words('foto da praia'))&ws},{'i'})
  def test_code_prefix(self):self.assertEqual(search.parse('code: retry backoff'),('code','retry backoff'))
 
 class EmbedderTests(unittest.TestCase):

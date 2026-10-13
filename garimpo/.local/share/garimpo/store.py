@@ -130,6 +130,14 @@ class Store:
   self._matrix[scope] = (gen, ids, mat, mods, hubs)
   return ids, mat, mods
 
+ def media_counts(self):
+  """{file_id: number of picture/sound vectors} — a video has dozens of chances to look relevant."""
+  gen = self.generation()
+  if getattr(self, "_counts", (None,))[0] != gen:
+   self._counts = (gen, dict(self.db.execute("select file_id, count(*) from chunks where modality in ('i','a') "
+                                             "and vec is not null group by file_id")))
+  return self._counts[1]
+
  def hubs(self, scope):
   """Stored hub values aligned with the last matrix(scope); NaN where not computed yet."""
   return self._matrix[scope][4]
