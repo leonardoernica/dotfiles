@@ -7,7 +7,7 @@ personal files), go in ~/.local/state/garimpo/eval.json:
    {"q": "receita de bolo", "want": []},                                     # nothing relevant exists
    {"q": "boleto", "want": ["boleto"], "media": false}]                       # pictures/sound here are noise
 """
-import json, os, re, time
+import json, os, random, re, time
 import config, search
 
 def run(searcher, cases, verbose=False, log=print):
@@ -35,6 +35,25 @@ def run(searcher, cases, verbose=False, log=print):
                 noise=round(sum(noise) / max(len(noise), 1), 1), stray_media=stray, duplicates=dupes, slowest=f"{slow:.2f}s")
  log(json.dumps(summary, ensure_ascii=False))
  return summary
+
+def typo(query, seed):
+ """The same search typed a little wrong: one swap, missing, extra or wrong letter in its longest word."""
+ rng = random.Random(seed)
+ longest = max(re.findall(r"\w+", query), key=len)
+ if len(longest) < 5: return None
+ i = rng.randrange(1, len(longest) - 1)
+ w = rng.choice([lambda: longest[:i] + longest[i + 1] + longest[i] + longest[i + 2:],
+                 lambda: longest[:i] + longest[i + 1:],
+                 lambda: longest[:i] + rng.choice("aeiou") + longest[i:],
+                 lambda: longest[:i] + rng.choice("aeiourstln".replace(longest[i], "")) + longest[i + 1:]])()
+ return query.replace(longest, w, 1)
+
+def with_typos(cases):
+ out = []
+ for n, c in enumerate(cases):
+  q = c["want"] and typo(c["q"], n)
+  if q and q != c["q"]: out.append(dict(c, q=q))
+ return out
 
 def load(path=None):
  """Hand-written cases plus every search you made in the palette and the file you opened from it."""

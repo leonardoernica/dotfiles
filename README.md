@@ -108,6 +108,12 @@ Como funciona:
 - **Aplicativos pelo significado:** nome, descrição e categorias de cada app passam pelo
   mesmo modelo, então "xadrez" acha o En Croissant e o Chess Overlay e "planilha" acha o
   LibreOffice Calc. Os vetores dos apps ficam no índice; um app novo é lido uma vez;
+- **Erros de digitação:** uma palavra que nenhum arquivo ou app contém é buscada como foi
+  digitada *e* como as grafias conhecidas mais próximas (1 letra trocada, faltando, sobrando
+  ou invertida; 2 a partir de 8 letras): "croassant" acha o En Croissant, "contarto" acha
+  contratos. Empates ficam todos ("pultão": Plutão e pulmão) e o ranking decide; manter a
+  palavra digitada protege fotos ("gato" continua achando o gato, mesmo que vire "gado").
+  `garimpo eval` também mede cada busca com um erro gerado automaticamente;
 - **Pedir o tipo:** "foto…", "print…", "vídeo…", "música…" põem esse tipo primeiro;
 - **Índice limpo:** JSON, logs, código colado em `.txt` e OCR de baixa confiança
   (palavras do tesseract abaixo de 60%) continuam achados por palavra exata, mas não

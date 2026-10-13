@@ -7,7 +7,7 @@
   garimpo index [--watch]    index the configured folders (once, or continuously)
   garimpo search TEXT        search from the terminal (prefix with code: for code)
   garimpo status | doctor    index state / dependency check
-  garimpo eval [-v]          measure ranking on your own known searches (~/.local/state/garimpo/eval.json)
+  garimpo eval [-v]          measure ranking on your own known searches, as typed and with a typo
   garimpo setup              download the pinned llama.cpp + EmbeddingGemma 2 (SHA-256 checked)
   garimpo serve [--query]    run the local embedding server (garimpo-embed / garimpo-query services)
   garimpo pause | resume     pause or resume background indexing
@@ -48,7 +48,10 @@ def cmd_eval(args, cfg):
  import evaluate, search
  try: cases = evaluate.load()
  except FileNotFoundError: raise SystemExit(f"crie {config.STATE / 'eval.json'}: veja o formato em evaluate.py")
- evaluate.run(search.Searcher(open_store(), Embedder(cfg), cfg), cases, verbose=args.verbose)
+ searcher = search.Searcher(open_store(), Embedder(cfg), cfg)
+ evaluate.run(searcher, cases, verbose=args.verbose)
+ print("com erros de digitação:", end=" ")
+ evaluate.run(searcher, evaluate.with_typos(cases), verbose=args.verbose)
 
 def cmd_open(args, cfg):
  from gi.repository import Gio, GLib

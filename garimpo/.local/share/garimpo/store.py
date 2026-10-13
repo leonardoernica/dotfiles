@@ -1,5 +1,5 @@
 """One SQLite file: file catalogue, chunks with float16 vectors and an FTS5 keyword index."""
-import sqlite3, threading
+import sqlite3, threading, unicodedata
 import numpy as np
 
 SCHEMA = """
@@ -63,6 +63,12 @@ class Store:
    self.db.execute("update files set state=? where id=?", (state, file_id))
    if done_pages is not None: self.db.execute("update files set done_pages=? where id=?", (done_pages, file_id))
 
+ def reindex_words(self, rows):
+  """rows: [(chunk_id, searchable_text)] — replace their keyword entries (NFC)."""
+  with self.db:
+   self.db.executemany("delete from chunks_fts where rowid=?", [(c,) for c, _ in rows])
+   self.db.executemany("insert into chunks_fts(rowid,text) values(?,?)", [(c, unicodedata.normalize("NFC", t)) for c, t in rows])
+
  def set_digest(self, file_id, digest):
   with self.db: self.db.execute("update files set digest=? where id=?", (digest, file_id))
 
@@ -73,7 +79,9 @@ class Store:
     blob = None if vec is None else np.asarray(vec, dtype=np.float16).tobytes()
     cid = self.db.execute("insert into chunks(file_id,loc,text,vec,model,modality) values(?,?,?,?,?,?)",
                           (file_id, loc, text, blob, model if blob else None, rest[0] if rest else "t")).lastrowid
-    if fts: self.db.execute("insert into chunks_fts(rowid,text) values(?,?)", (cid, fts))
+    # NFC: macOS/phone file names arrive decomposed ("a" + combining tilde) and FTS5 would split
+    # "Plutão" into "pluta" + "o".
+    if fts: self.db.execute("insert into chunks_fts(rowid,text) values(?,?)", (cid, unicodedata.normalize("NFC", fts)))
 
  def chunks_of(self, file_id):
   return self.db.execute("select id,loc,text from chunks where file_id=?", (file_id,)).fetchall()
@@ -156,6 +164,11 @@ class Store:
                           "join files f on f.id=c.file_id where chunks_fts match ? and f.scope=? "
                           "order by bm25(chunks_fts) limit ?", (match, scope, limit)).fetchall()
   except sqlite3.OperationalError: return []
+
+ def vocabulary(self):
+  """{word: number of passages} of the keyword index (accent-folded, as FTS5 stores it)."""
+  self.db.execute("create virtual table if not exists temp.chunks_vocab using fts5vocab(main, chunks_fts, 'row')")
+  with self.lock: return dict(self.db.execute("select term, doc from temp.chunks_vocab"))
 
  def chunk_info(self, ids):
   ids = sorted({int(i) for i in ids})

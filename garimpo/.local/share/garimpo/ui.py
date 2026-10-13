@@ -130,6 +130,10 @@ def app_score(app, query):
                                            app.get_description() or "",
                                            " ".join(app.get_keywords() if hasattr(app, "get_keywords") else [])])))
  if len(q) >= 3 and q in extra: return 0.55
+ # A typo per word ("croassant"): every typed word close to a word of the name.
+ typed, known = search.words(query), search.words(name)
+ if typed and all(any(search.typo_distance(t, k, search.allowed_typos(t)) <= search.allowed_typos(t) for k in known) for t in typed
+                  if search.allowed_typos(t)) and any(search.allowed_typos(t) for t in typed): return 0.5
  it = iter(name)
  return 0.4 if len(q) >= 3 and all(ch in it for ch in q) else 0.0
 
@@ -269,7 +273,8 @@ class Palette(Gtk.ApplicationWindow):
   for hit in [r for r in results if r.get("type") == "app_hit"]:
    app = self.app.app_by_id(hit["id"])
    if app and hit["id"] not in shown: shown.add(hit["id"]); self.fast_items.append(dict(type="app", app=app))
-  results = [r for r in results if r.get("type") != "app_hit"]
+  fixed = next((r["fixes"] for r in results if r.get("type") == "fixed"), None)
+  results = [r for r in results if r.get("type") not in ("app_hit", "fixed")]
   # Files opened often climb a little among documents; pictures keep the place the ranking gave them.
   docs = [r for r in results if not r.get("media")]
   at = next((i for i, r in enumerate(results) if r.get("media")), len(results))
@@ -279,6 +284,11 @@ class Palette(Gtk.ApplicationWindow):
   items = [dict(r, type="file", scope=scope) for r in ordered]
   if final and scope == "files": items.append(dict(type="web", text=text))
   self.render(self.fast_items, items)
+  if final and fixed:  # say what was searched instead, like a search engine does
+   note = Gtk.ListBoxRow(selectable=False, activatable=False, css_classes=["section"])
+   note.set_child(Gtk.Label(use_markup=True, xalign=0, css_classes=["subtitle"],
+                            label="Incluindo resultados para " + ", ".join(f"<b>{esc(alts[0])}</b>" for alts in fixed.values())))
+   self.list.prepend(note)
   if final and getattr(self, "open_when_final", False): self.open_when_final = False; self.open_selected()
 
  def render_empty(self):
@@ -509,6 +519,7 @@ class Worker:
  def set_apps(self, apps):
   """[(app_id, name, text)] read on the GTK thread; matched by meaning in the worker."""
   self.apps = apps
+  self.app_words = {w for _, name, text in apps for w in search.words(name + " " + text)}
  def warm(self):
   with self.cond: self.warm_flag = True; self.cond.notify()
 
@@ -527,6 +538,7 @@ class Worker:
     except Exception: pass
     continue
    query, callback = job
+   self.searcher.extra_words = getattr(self, "app_words", set())
    time.sleep(0.06)  # let fast typists finish the word
    with self.cond:
     if self.pending: continue
@@ -538,6 +550,7 @@ class Worker:
     _, full = self.searcher.search(query)
     if search.parse(query)[0] == "files" and getattr(self, "apps", None):
      for app_id, _z in self.searcher.app_hits(self.apps, query): full.append(dict(type="app_hit", id=app_id))
+    if self.searcher.fixes: full.append(dict(type="fixed", fixes=dict(self.searcher.fixes)))
    except Exception as e:
     full = []; print(f"[garimpo] busca falhou: {e!r}")
    GLib.idle_add(callback, query, full, True)

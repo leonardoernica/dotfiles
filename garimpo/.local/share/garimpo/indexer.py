@@ -19,13 +19,17 @@ DOCUMENT_KINDS = {"image", "pdf", "office"}
 NAMED_OTHER = {".zip", ".rar", ".7z", ".tar", ".gz", ".xz", ".apk", ".iso", ".deb", ".exe", ".svg", ".psd", ".xcf", ".fig",
                ".riv", ".blend", ".doc", ".xls", ".ppt", ".mobi", ".djvu", ".sqlite", ".db", ".ttf", ".otf", ".ai", ".sketch"}
 DATA_EXTS = {".xlsx", ".ods", ".csv", ".tsv"}  # tables are data: exact words only, like DigUp's numeric text
-QUALITY = 1  # bump to clean an existing index: vectors only for prose, confident OCR, content fingerprints
+QUALITY = 2  # bump to clean an existing index: vectors only for prose, confident OCR, content fingerprints
 # Cheap and high-value first: names, then pictures (~1-2 s each), then documents, then sound and video.
 PRIORITY = {"other": 0, "image": 1, "text": 2, "office": 2, "code": 2, "pdf": 2, "audio": 3, "video": 3}
 
 def sensitive(name, extra=()):
  low = name.lower()
  return any(fnmatch.fnmatch(low, p) for p in [*SENSITIVE, *extra])
+
+def name_words(path):
+ """What the keyword index stores for a file name: the name, its words and the folder."""
+ return f"{path.name} {re.sub(r'[_.-]+', ' ', path.stem)} {path.parent.name}"
 
 def embeddable(text):
  """Worth a vector? Numbers, data dumps, logs and OCR noise are found by exact words only."""
@@ -180,7 +184,7 @@ class Indexer:
   fid = self.store.upsert_file(path, st.st_mtime, st.st_size, k, scope, "indexing", model)
   self.store.set_digest(fid, readers.digest(path))
   label = readers.name_text(path)
-  fts_name = f"{path.name} {re.sub(r'[_.-]+', ' ', path.stem)} {path.parent.name}"
+  fts_name = name_words(path)
   name_vec = self.embedder.documents([(path.name, f"{label} ({path.parent.name})")])[0] if use_vectors and label else None
   self.store.add_chunks(fid, [(None, path.name, name_vec, fts_name)], model)
   state, done_pages = "done", None
@@ -209,8 +213,11 @@ class Indexer:
 
  def upgrade(self):
   """One-off cleanup of an index built by an older version (see QUALITY)."""
-  if int(self.store.get("quality") or 0) >= QUALITY: return
+  done = int(self.store.get("quality") or 0)
+  if done >= QUALITY: return
   db = self.store.db
+  if done >= 1:  # only what version 2 adds
+   self.renormalize(); self.store.set("quality", QUALITY); self._bump(force=True); return
   self.log("[garimpo] limpando o índice: vetores só para texto corrido, OCR confiável, impressões digitais")
   noisy = [cid for cid, text in db.execute("select id,text from chunks where modality='t' and loc is not null and vec is not null")
            if not embeddable(text or "")]
@@ -226,8 +233,20 @@ class Indexer:
     try: rows = self.ocr_rows(Path(key), bool(model))
     except Exception as e: self.log(f"[garimpo] erro em {key}: {e!r}"); continue
     self.store.replace_text(fid, rows, model)
+  self.renormalize()
   self.store.set("quality", QUALITY); self._bump(force=True)
   self.log(f"[garimpo] {len(noisy)} trechos de dados/ruído agora só por palavra exata")
+
+ def renormalize(self):
+  """Keyword entries of decomposed names and texts again in NFC (see Store.add_chunks)."""
+  import unicodedata
+  rows = []
+  for cid, loc, text, key in self.store.db.execute("select c.id,c.loc,c.text,f.path from chunks c join files f on f.id=c.file_id "
+                                                   "where c.modality='t'"):
+   if loc is None and not unicodedata.is_normalized("NFC", key): rows.append((cid, name_words(Path(key))))
+   elif loc is not None and text and not unicodedata.is_normalized("NFC", text): rows.append((cid, text))
+  self.store.reindex_words(rows)
+  self.log(f"[garimpo] {len(rows)} nomes e trechos com acentos decompostos reindexados")
 
  def media_rows(self, path, k):
   """Image, video-frame and sound vectors in the shared text/image/audio space."""

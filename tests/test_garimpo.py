@@ -240,6 +240,22 @@ class SearchTests(unittest.TestCase):
   self.searcher.search('tabuleiro de xadrez')
   self.assertEqual(self.searcher.app_hits(apps)[0][0],'chess.desktop')
   self.assertTrue(any(k.startswith('app:') for k, in self.store.db.execute('select key from meta')))  # vectors kept
+ def test_typos_find_the_same(self):
+  self.assertEqual(search.typo_distance('croassant','croissant',2),1)
+  self.assertEqual(search.typo_distance('xadrze','xadrez',1),1)  # swapped neighbours: one typo
+  for typed,wanted in (('cenuora','receita.txt'),('inquilnio','contrato_aluguel.md'),('estimaçao','contrato_aluguel.md')):
+   self.assertEqual(self.names(typed)[0],wanted,typed)
+ def test_typos_keep_what_was_typed(self):
+  v=search.Vocabulary({'gado':5,'pulmao':2,'plutao':1,'boleto':4})
+  self.assertEqual(v.fix('gato'),{'gato':['gado']})  # searched as typed too: a photo of a cat still matches
+  self.assertEqual(v.closest('pultao'),['pulmao','plutao'])  # a tie keeps both
+  self.assertEqual(v.fix('bole'),{})  # still typing "boleto"
+  self.assertEqual(v.fix('ab'),{})
+ def test_decomposed_names_are_whole_words(self):
+  import unicodedata
+  name=unicodedata.normalize('NFD','Plutão.txt');(self.root/name).write_text('x')
+  with patch.object(config,'STATE',Path(self.tmp.name)):Indexer(self.cfg,self.store,self.emb,log=lambda m:None).cycle()
+  self.assertTrue(self.store.keyword('"plutao"','files'))
  def test_code_prefix(self):self.assertEqual(search.parse('code: retry backoff'),('code','retry backoff'))
 
 class EmbedderTests(unittest.TestCase):
